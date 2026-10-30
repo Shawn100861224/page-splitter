@@ -336,13 +336,19 @@ export function pickThreshold(gaps, med, p) {
   const base = Math.max(2, med * p.gapRatio);
   const n = gaps.length;
   if (n < 5) return { thr: base, mode: 'base' };
-  const g = Float64Array.from(gaps).sort();
+  // 只在"够宽的间距"里找跳跃：带内碎缝（2~3px）会让比值虚高，把阈值压到十几像素，
+  // 结果整页按行切。med*0.2 以下的一律不参与跳跃判定（阈值计算仍用全部 gaps）。
+  const floor = Math.max(2, med * 0.2);
+  const cand = gaps.filter((v) => v >= floor).sort((a, b) => a - b);
+  const m = cand.length;
+  if (m < 3) return { thr: base, mode: 'base' };
+  const g = Float64Array.from(cand);
   let at = -1, bestRatio = 0;
-  for (let i = 0; i < n - 1; i++) {
+  for (let i = 0; i < m - 1; i++) {
     const r = g[i + 1] / Math.max(1, g[i]);
     if (r > bestRatio) { bestRatio = r; at = i; }
   }
-  if (at < 0 || bestRatio < 2.2 || n - 1 - at < 2) return { thr: base, mode: 'base' };
+  if (at < 0 || bestRatio < 2.2 || m - 1 - at < 2) return { thr: base, mode: 'base' };
   return { thr: Math.max(base, (g[at] + g[at + 1]) / 2), mode: 'two-tier' };
 }
 

@@ -2,7 +2,7 @@
  * main.js — 页面交互：选图 → 自动分区 → 手改分界 → 导出 ZIP
  * 全部在本机完成，不发任何网络请求。
  */
-import { analyze, DEFAULTS } from './segment.js';
+import { analyze, DEFAULTS } from './segment.js?v=9';
 import {
   loadBitmap, downscale, canvasToGray, cropRegion, canvasToJpegBlob, bitmapSize,
 } from './imageio.js';

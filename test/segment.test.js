@@ -112,3 +112,20 @@ test('rgbaToGray 与 Pillow "L" 同向', () => {
   assert.ok(Math.abs(g[1] - 0) <= 1);
   assert.ok(Math.abs(g[2] - 76) <= 2, `纯红应约 76，实际 ${g[2]}`);
 });
+
+// 碎缝不该把两档阈值压穿：3 道题、每题 3 行、行距 60、题距 360 的合成页。
+// 带内会出现 2~3px 的假缝，若它们参与"最大跳跃"搜索，阈值会掉到 ~16px 而按行切成 9 段。
+test('碎缝不参与跳跃判定：三题九行应切成 3 段', () => {
+  const W = 900, H = 1200;
+  const gray = new Uint8Array(W * H).fill(245);
+  for (let q = 0; q < 3; q++) {
+    for (let l = 0; l < 3; l++) {
+      const y = 120 + q * 360 + l * 60;
+      for (let yy = y; yy < y + 26; yy++) for (let x = 80; x < 780; x++) gray[yy * W + x] = 30;
+    }
+  }
+  const r = analyze({ gray, width: W, height: H }, {});
+  assert.equal(r.thrMode, 'two-tier', `阈值模式应为 two-tier，实际 ${r.thrMode}`);
+  assert.equal(r.regions.length, 3, `应切成 3 段，实际 ${r.regions.length}`);
+  assert.ok(r.gapThresh > 60, `阈值 ${r.gapThresh} 被碎缝压低了`);
+});

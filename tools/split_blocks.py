@@ -161,13 +161,20 @@ def pick_threshold(gaps, med, gap_ratio):
     n = len(gaps)
     if n < 5:
         return base
-    g = sorted(float(x) for x in gaps)
+    # 只在"够宽的间距"里找跳跃：带内碎缝（2~3px）会让比值虚高，阈值被压到十几像素，
+    # 整页就按行切了。med*0.2 以下的不参与跳跃判定（阈值本身仍按全部 gaps 算）。
+    floor = max(2.0, med * 0.2)
+    cand = sorted(float(x) for x in gaps if float(x) >= floor)
+    m = len(cand)
+    if m < 3:
+        return base
+    g = cand
     at, best = -1, 0.0
-    for i in range(n - 1):
+    for i in range(m - 1):
         r = g[i + 1] / max(1.0, g[i])
         if r > best:
             best, at = r, i
-    if at < 0 or best < 2.2 or n - 1 - at < 2:
+    if at < 0 or best < 2.2 or m - 1 - at < 2:
         return base
     return max(base, (g[at] + g[at + 1]) / 2.0)
 
