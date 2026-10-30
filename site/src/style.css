@@ -233,8 +233,10 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 .line .kill {
   position: absolute;
-  right: 6px; top: -13px;
-  width: 24px; height: 24px;
+  right: 6px; top: -15px;
+  width: 30px; height: 30px;
+  touch-action: manipulation;
+  z-index: 2; /* 必须高于 .line::after 那条不可见的拖动热区，否则点叉被它挡住 */
   border-radius: 50%;
   border: 1px solid var(--line);
   background: var(--danger);

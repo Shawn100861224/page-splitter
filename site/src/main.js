@@ -245,6 +245,9 @@ function makeDraggable(line, index) {
   let before = null;
 
   line.addEventListener('pointerdown', (e) => {
+    // 点在 × 上不要开始拖动：setPointerCapture 会把后续 click 重定向到 line，
+    // 按钮的 click 永远收不到（手机上表现为"点叉没用"）。
+    if (e.target.closest('.kill')) return;
     dragging = true;
     moved = false;
     before = S.dividers.slice();

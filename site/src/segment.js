@@ -338,7 +338,7 @@ export function pickThreshold(gaps, med, p) {
   if (n < 5) return { thr: base, mode: 'base' };
   // 只在"够宽的间距"里找跳跃：带内碎缝（2~3px）会让比值虚高，把阈值压到十几像素，
   // 结果整页按行切。med*0.2 以下的一律不参与跳跃判定（阈值计算仍用全部 gaps）。
-  const floor = Math.max(2, med * 0.2);
+  const floor = Math.max(2, med * 0.35);
   const cand = gaps.filter((v) => v >= floor).sort((a, b) => a - b);
   const m = cand.length;
   if (m < 3) return { thr: base, mode: 'base' };
