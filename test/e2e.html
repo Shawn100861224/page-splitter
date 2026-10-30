@@ -52,7 +52,7 @@ function zipEntries(zip) {
 
 try {
   const t0 = performance.now();
-  const bmp = await loadBitmap(await (await fetch('./fixtures/page-small.png')).blob());
+  const bmp = await loadBitmap(await (await fetch('./fixtures/handwritten-ruled.png')).blob());
   const { canvas, scale } = downscale(bmp, 1600);
   const { gray, width, height } = canvasToGray(canvas);
   const t1 = performance.now();

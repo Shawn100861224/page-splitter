@@ -1,0 +1,11 @@
+[
+ {
+  "slug": "handwritten-ruled",
+  "source": "handwritten-ruled.jpg",
+  "width": 756,
+  "height": 1008,
+  "kind": "handwriting",
+  "expect": "match",
+  "note": "手写横线笔记本，侧光阴影+底部桌面，人工核对 8 段"
+ }
+]

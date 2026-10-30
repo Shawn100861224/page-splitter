@@ -21,6 +21,20 @@ node tools/serve.js 8099      # 本地起服务
 
 浏览器验收页：`http://127.0.0.1:8099/test/e2e.html`（完整跑一遍分析 → 裁剪 → JPEG → ZIP → CRC 校验，结果打印在页面上）。
 
+## 加一个回归样本（参数要调通用就靠这个）
+
+```bash
+# 原图放进 samples/（已在 .gitignore，不会上传），一条命令生成夹具 + 真值 + 索引
+python tools/make_fixtures.py samples/*.jpg
+python tools/make_fixtures.py samples/印刷试卷.jpg --kind print --note "横排单栏印刷"      # 分类打标
+python tools/make_fixtures.py samples/密排讲义.jpg --kind print --baseline               # 切得不对的样本只锁基线
+npm test          # 每个 case 都会跑：JS 必须逐带逐段复现 Python
+```
+
+夹具 = 缩小灰度（gzip）+ 缩略 PNG + `*.truth.json`（Python 的 bands/regions）+ `cases.json` 索引。
+**真值来自 Python 实现，是"当前行为的基线"，不等于"正确答案"**：样本本身切得不对时用 `--baseline` 标记，
+测试只保证"两边一致、结果没漂"，不假装它切对了。
+
 ## 目录
 
 ```
@@ -33,7 +47,7 @@ site/                  # 站点本体（部署的就是这个目录）
   src/style.css
 tools/
   split_blocks.py      # Python 参考实现（命令行也能直接切图）
-  make_fixture.py      # 从一张原图生成回归夹具 + 真值
+  make_fixtures.py     # 批量生成回归夹具（灰度 gzip + 真值 + cases.json 索引）
   serve.js             # 本地静态服务器
 test/
   segment.test.js      # 算法一致性测试（JS vs Python）

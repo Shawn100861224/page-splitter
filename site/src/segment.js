@@ -219,7 +219,7 @@ export function analyze(img, options = {}) {
 
   // 5) 小碎带并到更近一侧 → 算间距 → 分区
   const bandHeights = bands.map(([a, b]) => b - a);
-  let med = median(bandHeights);   // 先用原始中位数判"小碎带"，再把 work 的中位数定为切分基准
+  let med = medianUpper(bandHeights); // 与 Python 同口径（len//2），两边才会归位同一批碎带
   let work = bands.map(([a, b]) => [a, b]);
   if (work.length >= 3) {
     for (let guard = 0; guard < 8; guard++) {

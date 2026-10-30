@@ -43,10 +43,15 @@ def _runs(flags, min_len):
     return out
 
 
-def analyse(path, x0, x1, thr_ratio, ink_ratio, col_ink_max,
-            smooth_ratio, row_thresh_ratio, min_band_ratio,
-            bg_div=16, merge_ratio=0.10):
-    im = ImageOps.exif_transpose(Image.open(path)).convert("L")
+DEFAULT_GAP_RATIO = 0.36
+
+
+def analyse_image(im, x0=0.12, x1=0.88, thr_ratio=0.40, ink_ratio=0.55,
+                  col_ink_max=0.45, smooth_ratio=0.004, row_thresh_ratio=0.012,
+                  min_band_ratio=0.006, bg_div=16, merge_ratio=0.10,
+                  gap_ratio=DEFAULT_GAP_RATIO):
+    """对已打开的灰度图做完整分析，返回 bands / regions / 参数。网页版算法要按这份结果对齐。"""
+    im = im.convert("L")
     a = np.asarray(im).astype(np.float32)
     H, W = a.shape
 
@@ -111,9 +116,19 @@ def analyse(path, x0, x1, thr_ratio, ink_ratio, col_ink_max,
 
     bands = [b for b in bands if not _is_edge_band(b)]
 
-    return dict(im=im, W=W, H=H, paper=paper, thr=thr, xs=(xs0, xs1),
-                bands=bands, profile=sm, thr_row=thr_row, smooth_k=k,
-                row_ink=row_ink)
+    regions, med, thr_gap, gaps = group(bands, gap_ratio)
+    return dict(im=im, W=W, H=H, paper=paper, thr=thr, xs=[xs0, xs1],
+                bands=[[b[0], b[1]] for b in bands], regions=regions,
+                median_band=med, gap_thresh=thr_gap, gaps=gaps,
+                profile=sm, thr_row=thr_row, smooth_k=k, row_ink=row_ink,
+                params=dict(ink_ratio=ink_ratio, bg_div=bg_div, merge_ratio=merge_ratio,
+                            row_thresh_ratio=row_thresh_ratio,
+                            min_band_ratio=min_band_ratio, gap_ratio=gap_ratio))
+
+
+def analyse(path, **kw):
+    """命令行用：路径进来，其余同 analyse_image。"""
+    return analyse_image(ImageOps.exif_transpose(Image.open(path)), **kw)
 
 
 def group(bands, gap_ratio):
@@ -180,10 +195,12 @@ def main():
     p.add_argument("--json", help="把 bands/regions 写到该 json 文件（给回归测试用）")
     args = p.parse_args()
 
-    r = analyse(args.image, args.x0, args.x1, args.thr_ratio, args.ink_ratio,
-                args.col_ink_max, args.smooth_ratio, args.row_thresh_ratio,
-                args.min_band_ratio, args.bg_div, args.merge_ratio)
-    regions, med, gthr, gaps = group(r["bands"], args.gap_ratio)
+    r = analyse(args.image, x0=args.x0, x1=args.x1, thr_ratio=args.thr_ratio,
+                ink_ratio=args.ink_ratio, col_ink_max=args.col_ink_max,
+                smooth_ratio=args.smooth_ratio, row_thresh_ratio=args.row_thresh_ratio,
+                min_band_ratio=args.min_band_ratio, bg_div=args.bg_div,
+                merge_ratio=args.merge_ratio, gap_ratio=args.gap_ratio)
+    regions, med, gthr, gaps = r["regions"], r["median_band"], r["gap_thresh"], r["gaps"]
 
     print(f"图 {r['W']}x{r['H']}  纸面90分位={r['paper']:.0f}  列过滤墨阈值={r['thr']:.0f}")
     print(f"列区间 x={r['xs'][0]}..{r['xs'][1]}  平滑窗={r['smooth_k']}  行阈值={r['thr_row']:.1f}")
@@ -215,11 +232,7 @@ def main():
                            xs=list(r["xs"]), bands=[list(b) for b in r["bands"]],
                            regions=[list(x) for x in regions],
                            median_band=med, gap_thresh=gthr,
-                           params=dict(ink_ratio=args.ink_ratio, bg_div=args.bg_div,
-                                       merge_ratio=args.merge_ratio,
-                                       row_thresh_ratio=args.row_thresh_ratio,
-                                       min_band_ratio=args.min_band_ratio,
-                                       gap_ratio=args.gap_ratio)),
+                           params=r["params"]),
                       f, ensure_ascii=False, indent=1)
         print(f"\nJSON → {os.path.abspath(args.json)}")
 

@@ -1,7 +1,7 @@
 /**
- * 回归测试：site/src/segment.js 必须复现 tools/split_blocks.py（v2）的结果。
- * 夹具由 tools/make_fixture.py 生成，truth-small.json 是 Python 侧的真值。
- * 改了算法先跑 `npm test`：两边不一致就挂，别悄悄改 truth。
+ * 回归测试：site/src/segment.js 必须复现 tools/split_blocks.py 的结果。
+ * 每个 case 由 tools/make_fixtures.py 生成：缩小灰度 + Python 真值 + cases.json 索引。
+ * 改了算法先跑 `npm test`：两边不一致就挂，**别改 truth.json 让测试变绿**。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,63 +14,74 @@ import { analyze, rgbaToGray, DEFAULTS } from '../site/src/segment.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIX = join(HERE, 'fixtures');
+const cases = JSON.parse(readFileSync(join(FIX, 'cases.json'), 'utf8'));
 
-const truth = JSON.parse(readFileSync(join(FIX, 'truth-small.json'), 'utf8'));
-const gray = new Uint8Array(gunzipSync(readFileSync(join(FIX, 'page-small.gray.gz'))));
-const img = { gray, width: truth.width, height: truth.height };
+/** 按各自名载入 gray + truth + 跑一遍（同一 case 多个断言复用结果） */
+function load(c) {
+  const truth = JSON.parse(readFileSync(join(FIX, `${c.slug}.truth.json`), 'utf8'));
+  const gray = new Uint8Array(gunzipSync(readFileSync(join(FIX, `${c.slug}.gray.gz`))));
+  assert.equal(gray.length, truth.width * truth.height, `${c.slug}: 灰度字节数与尺寸不符`);
+  const img = { gray, width: truth.width, height: truth.height };
+  const r = analyze(img, { gapRatio: truth.params.gap_ratio });
+  return { truth, r, img };
+}
 
-const TOL = 3; // 像素容差：两边实现的取整/插值细节略有差异
+const loaded = new Map(cases.map((c) => [c.slug, load(c)]));
 
-test('夹具尺寸自洽', () => {
-  assert.equal(gray.length, truth.width * truth.height);
+test('cases.json 至少有一个样本，且每个都有 truth', () => {
+  assert.ok(cases.length >= 1);
+  for (const c of cases) assert.ok(loaded.get(c.slug).truth.bands.length > 0, `${c.slug} 没有墨迹带`);
 });
 
-test('墨迹带数量与位置与 Python 参考一致', () => {
-  const r = analyze(img, { gapRatio: truth.params.gapRatio });
-  assert.equal(r.bands.length, truth.bands.length,
-    `带数 ${r.bands.length} != ${truth.bands.length}`);
-  truth.bands.forEach(([y0, y1], i) => {
-    const [a, b] = r.bands[i];
-    assert.ok(Math.abs(a - y0) <= TOL && Math.abs(b - y1) <= TOL,
-      `第 ${i} 带 [${a},${b}] 与真值 [${y0},${y1}] 差超过 ${TOL}px`);
+for (const c of cases) {
+  const { truth, r } = loaded.get(c.slug);
+  // 容差按页高给：小夹具上 3px 已经够严，大图允许同比例
+  const tol = Math.max(3, Math.round(truth.height * 0.004));
+
+  test(`[${c.slug}] 墨迹带与 Python 一致（${truth.bands.length} 条）`, () => {
+    assert.equal(r.bands.length, truth.bands.length,
+      `${c.slug}: 带数 ${r.bands.length} != ${truth.bands.length}`);
+    truth.bands.forEach(([y0, y1], i) => {
+      const [a, b] = r.bands[i];
+      assert.ok(Math.abs(a - y0) <= tol && Math.abs(b - y1) <= tol,
+        `${c.slug}: 第 ${i} 带 [${a},${b}] vs 真值 [${y0},${y1}] 超差 ${tol}px`);
+    });
   });
-});
 
-test('分区数量与位置与 Python 参考一致', () => {
-  const r = analyze(img, { gapRatio: truth.params.gapRatio });
-  assert.equal(r.regions.length, truth.regions.length,
-    `分区数 ${r.regions.length} != ${truth.regions.length}`);
-  truth.regions.forEach(([y0, y1], i) => {
-    const [a, b] = r.regions[i];
-    assert.ok(Math.abs(a - y0) <= TOL && Math.abs(b - y1) <= TOL,
-      `第 ${i} 段 [${a},${b}] 与真值 [${y0},${y1}] 差超过 ${TOL}px`);
+  test(`[${c.slug}] 分区与 Python 一致（${truth.regions.length} 段）`, () => {
+    assert.equal(r.regions.length, truth.regions.length,
+      `${c.slug}: 分区数 ${r.regions.length} != ${truth.regions.length}`);
+    truth.regions.forEach(([y0, y1], i) => {
+      const [a, b] = r.regions[i];
+      assert.ok(Math.abs(a - y0) <= tol && Math.abs(b - y1) <= tol,
+        `${c.slug}: 第 ${i} 段 [${a},${b}] vs 真值 [${y0},${y1}] 超差 ${tol}px`);
+    });
   });
-});
 
-test('分区首尾覆盖全部墨迹带，无重叠无空洞', () => {
-  const r = analyze(img, { gapRatio: truth.params.gapRatio });
-  assert.equal(r.regions[0][0], r.bands[0][0]);
-  assert.equal(r.regions[r.regions.length - 1][1], r.bands[r.bands.length - 1][1]);
-  for (let i = 1; i < r.regions.length; i++) {
-    assert.ok(r.regions[i][0] > r.regions[i - 1][1], '分区之间出现重叠');
-  }
-});
+  test(`[${c.slug}] 分区首尾覆盖全部墨迹带，无重叠无空洞`, () => {
+    assert.equal(r.regions[0][0], r.bands[0][0]);
+    assert.equal(r.regions[r.regions.length - 1][1], r.bands[r.bands.length - 1][1]);
+    for (let i = 1; i < r.regions.length; i++) {
+      assert.ok(r.regions[i][0] > r.regions[i - 1][1], `${c.slug}: 分区重叠`);
+    }
+  });
 
-test('页面底部横贯细线不当成文字带', () => {
-  const r = analyze(img);
-  for (const [y0, y1] of r.bands) {
-    const isEdgeZone = y0 >= DEFAULTS.edgeY * truth.height;
-    const isThin = (y1 - y0) <= DEFAULTS.edgeMaxH * truth.height;
-    assert.ok(!(isEdgeZone && isThin), `底部细线 [${y0},${y1}] 没有被剔除`);
-  }
-});
+  test(`[${c.slug}] 页面底部横贯细线不当成文字带`, () => {
+    for (const [y0, y1] of r.bands) {
+      const isEdgeZone = y0 >= DEFAULTS.edgeY * truth.height;
+      const isThin = (y1 - y0) <= DEFAULTS.edgeMaxH * truth.height;
+      assert.ok(!(isEdgeZone && isThin), `${c.slug}: 底部细线 [${y0},${y1}] 没剔掉`);
+    }
+  });
 
-test('参数可调：gapRatio 变大则分区变少', () => {
-  const tight = analyze(img, { gapRatio: 0.30 });
-  const loose = analyze(img, { gapRatio: 0.50 });
-  assert.ok(tight.regions.length >= loose.regions.length,
-    `${tight.regions.length} 段应不少于 ${loose.regions.length} 段`);
-});
+  test(`[${c.slug}] 灵敏度方向正确：gapRatio 变大 → 段数不增`, () => {
+    const { img } = loaded.get(c.slug);
+    const tight = analyze(img, { gapRatio: 0.26 });
+    const loose = analyze(img, { gapRatio: 0.55 });
+    assert.ok(tight.regions.length >= loose.regions.length,
+      `${c.slug}: ${tight.regions.length} 段应不少于 ${loose.regions.length} 段`);
+  });
+}
 
 test('rgbaToGray 与 Pillow "L" 同向', () => {
   const px = new Uint8ClampedArray([255, 255, 255, 255, 0, 0, 0, 255, 255, 0, 0, 255]);
