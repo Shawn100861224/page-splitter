@@ -10,14 +10,19 @@ import { makeZip } from './zipstore.js';
 
 const $ = (id) => document.getElementById(id);
 
+/* 内置浏览器（微信/QQ）没有 Web Share、也写不进相册：单独给提示，别让用户以为能一键存图 */
+const UA = navigator.userAgent;
+const inAppBrowser = /MicroMessenger|QQ\/|QQBrowser|Weibo/i.test(UA)
+  || new URLSearchParams(location.search).has('inapp');   // ?inapp=1 用来在本机复现提示
+
 const el = {
   drop: $('drop'), file: $('file'),
   editor: $('editor'),
   gap: $('gap'), pad: $('pad'), outGap: $('out-gap'), outPad: $('out-pad'),
   btnBack: $('btn-back'), btnAuto: $('btn-auto'), btnAdd: $('btn-add'), btnZip: $('btn-zip'),
-  btnUndo: $('btn-undo'), btnSave: $('btn-save'), dlgZip: $('dlg-zip'),
+  btnUndo: $('btn-undo'), btnSave: $('btn-save'), dlgZip: $('dlg-zip'), dlgAll: $('dlg-all'),
   dlgGallery: $('dlg-gallery'), galleryList: $('gallery-list'), dlgClose: $('dlg-close'),
-  status: $('status'), warnings: $('warnings'),
+  status: $('status'), warnings: $('warnings'), uaTip: $('ua-tip'),
   stage: $('stage'), preview: $('preview'), overlay: $('overlay'),
   bands: $('bands'), lines: $('lines'), list: $('list'),
 };
@@ -63,6 +68,7 @@ async function openFile(file) {
     el.editor.hidden = false;
     drawPreview();
     runAnalyze();
+    if (el.uaTip) el.uaTip.hidden = !inAppBrowser;
   } catch (err) {
     console.error(err);
     setStatus(`读图失败：${err.message || err}`, 'warn');
@@ -460,16 +466,24 @@ function openGalleryFallback() {
   share.files.forEach((f, i) => {
     const box = document.createElement('figure');
     const im = document.createElement('img');
-    im.src = URL.createObjectURL(f);
+    if (inAppBrowser) {
+      // 微信/QQ 的 X5 内核长按保存对 blob: 不稳定，改用 data: URL（容量够、能长按存）
+      const fr = new FileReader();
+      fr.onload = () => { im.src = String(fr.result); };
+      fr.readAsDataURL(f);
+    } else {
+      im.src = URL.createObjectURL(f);
+    }
     im.alt = `第 ${i + 1} 段`;
     im.loading = 'lazy';
     const cap = document.createElement('figcaption');
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'ghost';
-    btn.textContent = `下载第 ${i + 1} 段`;
+    btn.textContent = `下载到文件`;
     btn.addEventListener('click', () => download(f, f.name));
-    cap.textContent = `第 ${String(i + 1).padStart(2, '0')} 段 · `;
+    cap.className = 'cap';
+    cap.textContent = `第 ${String(i + 1).padStart(2, '0')} 段 · 长按这张图 → 保存到相册 · `;
     cap.appendChild(btn);
     box.append(im, cap);
     el.galleryList.appendChild(box);
@@ -569,6 +583,14 @@ el.overlay.addEventListener('click', (e) => {
 
 el.btnZip.addEventListener('click', exportZip);
 if (el.dlgZip) el.dlgZip.addEventListener('click', exportZip);
+if (el.dlgAll) el.dlgAll.addEventListener('click', async () => {
+  // 逐张触发下载：Chrome/安卓浏览器会全部存进「下载」，相册的「下载」相册里能看到
+  for (let i = 0; i < share.files.length; i++) {
+    download(share.files[i], share.files[i].name);
+    await new Promise((r) => setTimeout(r, 350));
+  }
+  setStatus(`已请求下载 ${share.files.length} 张：会进「下载/Download」，相册的「下载」相册可见`);
+});
 el.btnSave.addEventListener('click', saveToGallery);
 el.dlgClose.addEventListener('click', () => el.dlgGallery.close());
 el.dlgGallery.addEventListener('click', (e) => { if (e.target === el.dlgGallery) el.dlgGallery.close(); });

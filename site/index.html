@@ -7,7 +7,7 @@
 <meta name="description" content="上传一张照片，自动识别文字区块并按题目切开，可手动调整分界线，一键导出 ZIP。图片不上传，全部在本机浏览器里完成。">
 <meta name="theme-color" content="#0f1115">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✂️</text></svg>">
-<link rel="stylesheet" href="./src/style.css?v=8">
+<link rel="stylesheet" href="./src/style.css?v=9">
 </head>
 <body>
 <header class="top">
@@ -79,6 +79,14 @@
     </div>
 
     <p id="status" class="status" hidden></p>
+    <div id="ua-tip" class="ua-tip" hidden>
+      <b>你是在微信/QQ 内置浏览器里打开的</b>
+      <p>这里没有「存到相册」的接口，点任何下载都只会进「文件」。存相册有两条路：</p>
+      <ol>
+        <li><b>长按图片 → 保存图片</b>（弹出保存面板后，按住任意一张图）</li>
+        <li>点右上角 <b>⋯ → 在浏览器打开</b>，再点「保存到相册」</li>
+      </ol>
+    </div>
     <ul id="warnings" class="warnings" hidden></ul>
 
     <div class="split">
@@ -102,11 +110,12 @@
   <header>
     <b>长按图片 → 存到相册</b>
     <span class="gallery-actions">
+      <button id="dlg-all" class="ghost" type="button">全部下载</button>
       <button id="dlg-zip" class="ghost" type="button">打包 ZIP</button>
       <button id="dlg-close" class="ghost" type="button">关闭</button>
     </span>
   </header>
-  <p class="gallery-tip">iOS：长按 → 「存储到照片」；安卓：长按 → 「下载图片」。也可以点每张下面的按钮单独下载。</p>
+  <p class="gallery-tip">安卓：<b>长按下面任意一张图 → 「保存图片 / 下载图片」</b>，就会进相册。<br>iOS：长按 → 「存储到照片」。<br>下面的「下载」按钮是存进「文件」App，不是相册。</p>
   <div id="gallery-list" class="gallery-list"></div>
 </dialog>
 
@@ -117,6 +126,6 @@
   </p>
 </footer>
 
-<script type="module" src="./src/main.js?v=9"></script>
+<script type="module" src="./src/main.js?v=12"></script>
 </body>
 </html>
