@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>e2e 自检 · page-splitter</title>
+<style>
+ body { font: 14px/1.6 ui-monospace, Consolas, monospace; background: #111; color: #ddd; padding: 16px; }
+ pre { white-space: pre-wrap; }
+ .ok { color: #4cc9a4; } .bad { color: #ff6b6b; }
+</style>
+</head>
+<body>
+<h2>端到端自检（不进站点，只用于本地验收）</h2>
+<p>流程：夹具灰度图 → analyze() → 每段裁剪 → JPEG 编码 → ZIP 打包 → 校验签名与大小。</p>
+<pre id="out">运行中…</pre>
+<img id="thumb" alt="第一段预览" style="max-width:100%;border:1px solid #333">
+<script type="module">
+import { analyze } from '../site/src/segment.js';
+import { loadBitmap, downscale, canvasToGray, cropRegion, canvasToJpegBlob } from '../site/src/imageio.js';
+import { makeZip, crc32 } from '../site/src/zipstore.js';
+
+const out = document.getElementById('out');
+const lines = [];
+let fail = 0;
+const log = (ok, msg) => { lines.push(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if (!ok) fail++; };
+
+function zipEntries(zip) {
+  // 从中央目录反解，独立验证我们自己的打包结果
+  const dv = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+  const eocd = zip.length - 22;
+  if (dv.getUint32(eocd, true) !== 0x06054b50) throw new Error('EOCD 签名错');
+  const n = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true);
+  const list = [];
+  for (let i = 0; i < n; i++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('中央目录签名错');
+    const crc = dv.getUint32(p + 16, true);
+    const size = dv.getUint32(p + 24, true);
+    const nameLen = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true);
+    const cmtLen = dv.getUint16(p + 32, true);
+    const off = dv.getUint32(p + 42, true);
+    const name = new TextDecoder().decode(zip.slice(p + 46, p + 46 + nameLen));
+    const lnameLen = dv.getUint16(off + 26, true);
+    const lextra = dv.getUint16(off + 28, true);
+    const data = zip.slice(off + 30 + lnameLen + lextra, off + 30 + lnameLen + lextra + size);
+    list.push({ name, crc, size, crcOk: crc32(data) === crc });
+    p += 46 + nameLen + extraLen + cmtLen;
+  }
+  return list;
+}
+
+try {
+  const t0 = performance.now();
+  const bmp = await loadBitmap(await (await fetch('./fixtures/page-small.png')).blob());
+  const { canvas, scale } = downscale(bmp, 1600);
+  const { gray, width, height } = canvasToGray(canvas);
+  const t1 = performance.now();
+  const res = analyze({ gray, width, height });
+  const t2 = performance.now();
+  log(res.bands.length >= 8, `墨迹带 ${res.bands.length} 条`);
+  log(res.regions.length >= 5, `分区 ${res.regions.length} 段`);
+  log(t2 - t1 < 400, `分析耗时 ${(t2 - t1).toFixed(0)}ms（<400ms）`);
+  log(true, `解码+缩放 ${(t1 - t0).toFixed(0)}ms · 分析尺寸 ${width}x${height} · scale ${scale.toFixed(3)}`);
+
+  const files = [];
+  for (let i = 0; i < res.regions.length; i++) {
+    const blob = await canvasToJpegBlob(cropRegion(bmp, res.regions[i], scale, { x0: res.xs[0], x1: res.xs[1], pad: 28 }).canvas, 0.92);
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    const jpeg = buf[0] === 0xff && buf[1] === 0xd8 && buf[buf.length - 2] === 0xff && buf[buf.length - 1] === 0xd9;
+    log(jpeg && buf.length > 2000, `第${i + 1}段 JPEG ${(buf.length / 1024).toFixed(0)}KB ${jpeg ? '头尾正确' : '头尾错'}`);
+    files.push({ name: `第${String(i + 1).padStart(2, '0')}段.jpg`, data: buf });
+    if (i === 0) document.getElementById('thumb').src = URL.createObjectURL(blob);
+  }
+
+  const zip = makeZip(files);
+  const entries = zipEntries(zip);
+  log(entries.length === files.length, `ZIP 条目 ${entries.length}/${files.length}`);
+  log(entries.every((e) => e.crcOk), 'ZIP 每个条目 CRC 校验通过');
+  const total = files.reduce((s, f) => s + f.data.length, 0);
+  log(Math.abs(zip.length - total) < 4096, `ZIP ${(zip.length / 1024).toFixed(0)}KB ≈ 原件合计 ${(total / 1024).toFixed(0)}KB`);
+  log(zip[0] === 0x50 && zip[1] === 0x4b, 'ZIP 以 PK 开头');
+  window.__done = true;
+} catch (e) {
+  log(false, '异常：' + (e && e.message));
+}
+
+out.textContent = lines.join('\n') + `\n\n${fail ? '❌ 失败 ' + fail + ' 项' : '✅ 全部通过'}`;
+out.className = fail ? 'bad' : 'ok';
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "page-splitter",
+  "version": "1.0.0",
+  "description": "照片自动按题目分区（纯前端，不上传图片）",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/segment.test.js test/zipstore.test.js",
+    "serve": "node tools/serve.js"
+  }
+}
