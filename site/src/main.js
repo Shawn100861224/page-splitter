@@ -8,6 +8,8 @@ import {
 } from './imageio.js';
 import { makeZip } from './zipstore.js';
 
+document.documentElement.dataset.build = 'v13-hist';
+
 const $ = (id) => document.getElementById(id);
 
 /* 内置浏览器（微信/QQ）没有 Web Share、也写不进相册：单独给提示，别让用户以为能一键存图 */
@@ -69,6 +71,8 @@ async function openFile(file) {
     drawPreview();
     runAnalyze();
     if (el.uaTip) el.uaTip.hidden = !inAppBrowser;
+    try { window.history.pushState({ stage: 'editor' }, ''); } catch (_) { /* 老浏览器忽略 */ }
+    document.documentElement.dataset.stage = 'editor';
   } catch (err) {
     console.error(err);
     setStatus(`读图失败：${err.message || err}`, 'warn');
@@ -490,6 +494,8 @@ function openGalleryFallback() {
   });
   if (typeof el.dlgGallery.showModal === 'function') el.dlgGallery.showModal();
   else el.dlgGallery.setAttribute('open', '');
+  try { window.history.pushState({ stage: 'gallery' }, ''); } catch (_) { /* ignore */ }
+  document.documentElement.dataset.stage = 'gallery';
 }
 
 /* ---------------- 事件绑定 ---------------- */
@@ -544,14 +550,33 @@ el.pad.addEventListener('input', () => {
 });
 el.pad.addEventListener('change', () => { if (S.result) renderList(); });
 
-el.btnBack.addEventListener('click', () => {
+function backToDrop() {
+  document.documentElement.dataset.stage = 'drop';
   el.editor.hidden = true;
   el.drop.hidden = false;
   el.file.value = '';
   S.bmp = null;
   S.result = null;
+  share.files = [];
+  share.dirty = true;
   setStatus('');
   renderWarnings([]);
+}
+
+el.btnBack.addEventListener('click', () => {
+  if (window.history.state && window.history.state.stage === 'editor') window.history.back();  // 让浏览器返回栈同步，不然后面按返回会跳两层
+  else backToDrop();
+});
+
+/* 手机返回键：面板 → 关面板；编辑器 → 回选图页；选图页才真的离开网站 */
+window.addEventListener('popstate', (ev) => {
+  const stage = (ev.state && ev.state.stage) || '';
+  document.documentElement.dataset.stage = stage || 'drop';
+  if (el.dlgGallery && el.dlgGallery.open) {
+    el.dlgGallery.close();
+    if (stage === 'editor') return;
+  }
+  if (stage !== 'editor') backToDrop();
 });
 
 el.btnAuto.addEventListener('click', () => { if (S.result) runAnalyze(); });
@@ -593,6 +618,10 @@ if (el.dlgAll) el.dlgAll.addEventListener('click', async () => {
 });
 el.btnSave.addEventListener('click', saveToGallery);
 el.dlgClose.addEventListener('click', () => el.dlgGallery.close());
+// 用「关闭」按钮退出面板时，把压进去的那层历史也退掉，否则返回键会先空按一次
+el.dlgGallery.addEventListener('close', () => {
+  if (window.history.state && window.history.state.stage === 'gallery') window.history.back();
+});
 el.dlgGallery.addEventListener('click', (e) => { if (e.target === el.dlgGallery) el.dlgGallery.close(); });
 el.btnUndo.addEventListener('click', undo);
 
