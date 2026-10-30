@@ -1,0 +1,75 @@
+{
+ "slug": "screenshot",
+ "source": "screenshot.jpg",
+ "width": 567,
+ "height": 1008,
+ "xs": [
+  68,
+  498
+ ],
+ "bands": [
+  [
+   88,
+   113
+  ],
+  [
+   124,
+   147
+  ],
+  [
+   172,
+   194
+  ],
+  [
+   277,
+   302
+  ],
+  [
+   313,
+   336
+  ],
+  [
+   361,
+   383
+  ],
+  [
+   466,
+   491
+  ],
+  [
+   502,
+   525
+  ],
+  [
+   550,
+   572
+  ]
+ ],
+ "regions": [
+  [
+   88,
+   194
+  ],
+  [
+   277,
+   383
+  ],
+  [
+   466,
+   572
+  ]
+ ],
+ "median_band": 23.0,
+ "gap_thresh": 54.0,
+ "params": {
+  "ink_ratio": 0.55,
+  "bg_div": 16,
+  "merge_ratio": 0.1,
+  "row_thresh_ratio": 0.012,
+  "min_band_ratio": 0.006,
+  "gap_ratio": 0.36
+ },
+ "kind": "screenshot",
+ "expect": "match",
+ "note": "合成：截图式白底，行距 21-49 / 题间 159"
+}

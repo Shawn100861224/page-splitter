@@ -83,6 +83,28 @@ for (const c of cases) {
   });
 }
 
+// 已知边界的页面：不要求切得对，只要求**提前说清楚**
+for (const c of cases.filter((x) => x.kind === 'two-column' || x.kind === 'dense')) {
+  const { r } = loaded.get(c.slug);
+  test(`[${c.slug}] 这类页面必须给出提示（不许默默切错）`, () => {
+    assert.ok(r.warnings.length > 0, `${c.slug}: 没有任何提示`);
+  });
+  if (c.kind === 'two-column') {
+    test(`[${c.slug}] 检测到中间空白沟，提示是双栏`, () => {
+      assert.ok(r.gutter, `${c.slug}: 没检测到栏间空白`);
+      assert.ok(r.warnings.some((w) => w.includes('双栏')), r.warnings.join(' | '));
+    });
+  }
+}
+
+for (const c of cases.filter((x) => x.kind === 'print' || x.kind === 'screenshot' || x.kind === 'handwriting')) {
+  const { r } = loaded.get(c.slug);
+  test(`[${c.slug}] 单栏页不该误报双栏`, () => {
+    assert.ok(!r.gutter, `${c.slug}: 误判双栏`);
+    assert.ok(!r.warnings.some((w) => w.includes('双栏')), r.warnings.join(' | '));
+  });
+}
+
 test('rgbaToGray 与 Pillow "L" 同向', () => {
   const px = new Uint8ClampedArray([255, 255, 255, 255, 0, 0, 0, 255, 255, 0, 0, 255]);
   const g = rgbaToGray(px, 3, 1);

@@ -1,0 +1,35 @@
+{
+ "slug": "dense-print",
+ "source": "dense-print.jpg",
+ "width": 713,
+ "height": 1008,
+ "xs": [
+  85,
+  627
+ ],
+ "bands": [
+  [
+   54,
+   570
+  ]
+ ],
+ "regions": [
+  [
+   54,
+   570
+  ]
+ ],
+ "median_band": 516.0,
+ "gap_thresh": 185.76,
+ "params": {
+  "ink_ratio": 0.55,
+  "bg_div": 16,
+  "merge_ratio": 0.1,
+  "row_thresh_ratio": 0.012,
+  "min_band_ratio": 0.006,
+  "gap_ratio": 0.36
+ },
+ "kind": "dense",
+ "expect": "baseline",
+ "note": "合成：印刷密排，行距≈字高，整页粘成一块"
+}

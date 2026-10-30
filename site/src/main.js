@@ -15,7 +15,8 @@ const el = {
   editor: $('editor'),
   gap: $('gap'), pad: $('pad'), outGap: $('out-gap'), outPad: $('out-pad'),
   btnBack: $('btn-back'), btnAuto: $('btn-auto'), btnAdd: $('btn-add'), btnZip: $('btn-zip'),
-  status: $('status'),
+  btnUndo: $('btn-undo'),
+  status: $('status'), warnings: $('warnings'),
   stage: $('stage'), preview: $('preview'), overlay: $('overlay'),
   bands: $('bands'), lines: $('lines'), list: $('list'),
 };
@@ -81,11 +82,15 @@ function runAnalyze() {
   const t0 = performance.now();
   S.result = analyze(S.gray, { gapRatio: S.gapRatio });
   S.dividers = S.result.regions.slice(1).map((r) => r[0]);
+  history.length = 0;
+  updateUndo();
   const ms = Math.round(performance.now() - t0);
   const n = regions().length;
-  const warn = S.result.warnings[0];
+  const w = S.result.warnings;
   setStatus(`${n} 段 · ${S.result.bands.length} 条墨迹带 · ${ms}ms`
-    + (warn ? ` · ${warn}` : ''), warn ? 'warn' : '');
+    + (w.length ? ` · ${w[0]}` + (w.length > 1 ? `（另有 ${w.length - 1} 条提示见下方）` : '') : ''),
+    w.length ? 'warn' : '');
+  renderWarnings(w);
   render();
 }
 
@@ -104,6 +109,44 @@ function regions() {
     if (ys[i + 1] - ys[i] >= 4) out.push([ys[i], ys[i + 1]]);
   }
   return out;
+}
+
+/** 分析给出的"这页可能不适合"的提示，逐条列在状态栏下面 */
+function renderWarnings(list) {
+  if (!el.warnings) return;
+  el.warnings.replaceChildren();
+  if (!list || !list.length) { el.warnings.hidden = true; return; }
+  for (const t of list) {
+    const li = document.createElement('li');
+    li.textContent = t;
+    el.warnings.appendChild(li);
+  }
+  el.warnings.hidden = false;
+}
+
+/* ---------------- 撤销 ---------------- */
+// 只记分界线位置：图、分析结果都没变，撤销就是回到上一组线。
+const history = [];
+
+function snapshot(lines = S.dividers.slice()) {
+  const top = history[history.length - 1];
+  if (top && top.length === lines.length && top.every((v, i) => v === lines[i])) return;
+  history.push(lines);
+  if (history.length > 60) history.shift();
+  updateUndo();
+}
+
+function undo() {
+  const prev = history.pop();
+  updateUndo();
+  if (!prev) return;
+  S.dividers = prev.slice();
+  render();
+  syncStatus();
+}
+
+function updateUndo() {
+  if (el.btnUndo) el.btnUndo.disabled = history.length === 0 || !S.result;
 }
 
 /* ---------------- 渲染 ---------------- */
@@ -152,6 +195,7 @@ function renderOverlay() {
     kill.title = '删除这条分界线';
     kill.addEventListener('click', (e) => {
       e.stopPropagation();
+      snapshot();
       S.dividers.splice(i, 1);
       render();
       syncStatus();
@@ -161,11 +205,13 @@ function renderOverlay() {
       const step = e.shiftKey ? 12 : 2;
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         e.preventDefault();
+        snapshot();
         const [top, bottom] = contentBounds();
         S.dividers[i] = clamp(y + (e.key === 'ArrowUp' ? -step : step), top + 4, bottom - 4);
         render();
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
+        snapshot();
         S.dividers.splice(i, 1);
         render();
         syncStatus();
@@ -182,10 +228,12 @@ function renderOverlay() {
 function makeDraggable(line, index) {
   let dragging = false;
   let moved = false;
+  let before = null;
 
   line.addEventListener('pointerdown', (e) => {
     dragging = true;
     moved = false;
+    before = S.dividers.slice();
     line.setPointerCapture(e.pointerId);
   });
 
@@ -202,7 +250,11 @@ function makeDraggable(line, index) {
     }
   });
 
-  const end = () => { dragging = false; if (moved) { render(); syncStatus(); } };
+  const end = () => {
+    dragging = false;
+    if (moved && before) snapshot(before);
+    if (moved) { render(); syncStatus(); }
+  };
   line.addEventListener('pointerup', end);
   line.addEventListener('pointercancel', end);
 }
@@ -373,6 +425,7 @@ el.btnBack.addEventListener('click', () => {
   S.bmp = null;
   S.result = null;
   setStatus('');
+  renderWarnings([]);
 });
 
 el.btnAuto.addEventListener('click', () => { if (S.result) runAnalyze(); });
@@ -382,6 +435,7 @@ el.btnAdd.addEventListener('click', () => {
   const [top, bottom] = contentBounds();
   const mid = Math.round((top + bottom) / 2);
   const taken = S.dividers.some((y) => Math.abs(y - mid) < 6);
+  snapshot();
   S.dividers.push(taken ? mid + 12 : mid);
   render();
   syncStatus();
@@ -395,12 +449,22 @@ el.overlay.addEventListener('click', (e) => {
   const [top, bottom] = contentBounds();
   if (y <= top + 6 || y >= bottom - 6) return;
   if (S.dividers.some((d) => Math.abs(d - y) < 6)) return;
+  snapshot();
   S.dividers.push(y);
   render();
   syncStatus();
 });
 
 el.btnZip.addEventListener('click', exportZip);
+el.btnUndo.addEventListener('click', undo);
+
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+    if (!history.length) return;
+    e.preventDefault();
+    undo();
+  }
+});
 
 el.outGap.textContent = S.gapRatio.toFixed(2);
 el.outPad.textContent = String(S.pad);

@@ -8,6 +8,12 @@
 
 export const ANALYZE_MAX = 4096;
 
+/**
+ * 分析画面的像素上限。手机上 48MP 原图直接分析要 48MB 灰度 + 190MB canvas，
+ * Safari 会直接杀页；截到 25MP 后灰度 ~25MB，原图仍留着用来导出（导出按原分辨率裁）。
+ */
+export const ANALYZE_MAX_PIXELS = 25_000_000;
+
 /** 从 File/Blob 读成 ImageBitmap（自动按 EXIF 摆正） */
 export async function loadBitmap(file) {
   if (typeof createImageBitmap === 'function') {
@@ -39,7 +45,9 @@ export function bitmapSize(bmp) {
 /** 按长边上限等比缩放，返回 canvas（分析用） */
 export function downscale(bmp, maxSide = ANALYZE_MAX) {
   const { width, height } = bitmapSize(bmp);
-  const scale = Math.min(1, maxSide / Math.max(width, height));
+  let scale = Math.min(1, maxSide / Math.max(width, height));
+  const px = width * height * scale * scale;
+  if (px > ANALYZE_MAX_PIXELS) scale *= Math.sqrt(ANALYZE_MAX_PIXELS / px); // 大图按面积再截一刀
   const w = Math.max(1, Math.round(width * scale));
   const h = Math.max(1, Math.round(height * scale));
   const canvas = document.createElement('canvas');

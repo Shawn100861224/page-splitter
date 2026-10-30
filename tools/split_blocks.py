@@ -131,6 +131,29 @@ def analyse(path, **kw):
     return analyse_image(ImageOps.exif_transpose(Image.open(path)), **kw)
 
 
+def pick_threshold(gaps, med, gap_ratio):
+    """阈值怎么定：先看这页间距有没有"明显两档"。
+
+    印刷/截图的题间相对行距是**跳跃式**（实测 20px→158px，7.9 倍）；手写页题间只比
+    行距高一点点（实测 51px→55px，1.08 倍），没有跳跃。所以取排序后 gap 的最大跳跃
+    g[i+1]/g[i]：≥2.2 倍且其上至少还有 2 个 gap，才认为有两档、阈值取跳跃中点；
+    否则退回 med × gapRatio。与 site/src/segment.js 逐条同逻辑。
+    """
+    base = max(2.0, med * gap_ratio)
+    n = len(gaps)
+    if n < 5:
+        return base
+    g = sorted(float(x) for x in gaps)
+    at, best = -1, 0.0
+    for i in range(n - 1):
+        r = g[i + 1] / max(1.0, g[i])
+        if r > best:
+            best, at = r, i
+    if at < 0 or best < 2.2 or n - 1 - at < 2:
+        return base
+    return max(base, (g[at] + g[at + 1]) / 2.0)
+
+
 def group(bands, gap_ratio):
     if not bands:
         return [], 0.0, 0.0, []
@@ -158,8 +181,8 @@ def group(bands, gap_ratio):
     # 切分基准：小碎带归位后再取上中位数（与 site/src/segment.js 完全一致）
     wh = sorted(w[1] - w[0] for w in work) if work else [0]
     med = float(wh[len(wh) // 2])
-    thr = max(2.0, med * gap_ratio)
     gaps = [work[i + 1][0] - work[i][1] for i in range(len(work) - 1)]
+    thr = pick_threshold(gaps, med, gap_ratio)
     regions = [[work[0][0], work[0][1]]]
     for i, g in enumerate(gaps, start=1):
         if g > thr:
@@ -207,7 +230,8 @@ def main():
     print(f"\n墨迹带 {len(r['bands'])} 条:")
     for i, (y0, y1) in enumerate(r["bands"]):
         print(f"  #{i:02d} [{y0},{y1}] h={y1 - y0}")
-    print(f"\n中位带高={med:.0f}  切分阈值={gthr:.1f}px ({args.gap_ratio}×中位带高)")
+    tier = "两档跳跃" if gthr > max(2.0, med * args.gap_ratio) + 0.01 else "基准"
+    print(f"\n中位带高={med:.0f}  切分阈值={gthr:.1f}px ({args.gap_ratio}×中位带高, {tier})")
     print("相邻间距:")
     risky = []
     for i, g in enumerate(gaps):

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>手机尺寸回归检查</title>
+<style>
+  body { margin: 0; padding: 16px; background: #1a1d23; color: #ddd; font: 13px/1.5 system-ui, sans-serif; }
+  .row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+  figure { margin: 0; }
+  figcaption { margin-bottom: 6px; color: #9aa; }
+  iframe { border: 1px solid #333; background: #fff; display: block; }
+  /* 375/390 是 iPhone、360 是常见安卓、768 是 iPad 竖屏 */
+</style>
+</head>
+<body>
+<p>同一个 <code>/</code>，四种视口宽度并排。检查：不横向溢出、按钮不挤压、列表不重叠。</p>
+<div class="row">
+  <figure><figcaption>360 × 720（安卓）</figcaption><iframe src="/?m=1" width="360" height="720"></iframe></figure>
+  <figure><figcaption>390 × 844（iPhone 14）</figcaption><iframe src="/?m=2" width="390" height="844"></iframe></figure>
+  <figure><figcaption>768 × 1024（iPad 竖）</figcaption><iframe src="/?m=3" width="768" height="1024"></iframe></figure>
+</div>
+</body>
+</html>

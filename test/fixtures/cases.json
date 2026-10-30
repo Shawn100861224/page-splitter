@@ -7,5 +7,41 @@
   "kind": "handwriting",
   "expect": "match",
   "note": "手写横线笔记本，侧光阴影+底部桌面，人工核对 8 段"
+ },
+ {
+  "slug": "exam-print",
+  "source": "exam-print.jpg",
+  "width": 713,
+  "height": 1008,
+  "kind": "print",
+  "expect": "match",
+  "note": "合成：印刷题册，行距 20 / 题间 158（两档跳跃）"
+ },
+ {
+  "slug": "screenshot",
+  "source": "screenshot.jpg",
+  "width": 567,
+  "height": 1008,
+  "kind": "screenshot",
+  "expect": "match",
+  "note": "合成：截图式白底，行距 21-49 / 题间 159"
+ },
+ {
+  "slug": "two-column",
+  "source": "two-column.jpg",
+  "width": 713,
+  "height": 1008,
+  "kind": "two-column",
+  "expect": "baseline",
+  "note": "合成：双栏，应只出警告不分段"
+ },
+ {
+  "slug": "dense-print",
+  "source": "dense-print.jpg",
+  "width": 713,
+  "height": 1008,
+  "kind": "dense",
+  "expect": "baseline",
+  "note": "合成：印刷密排，行距≈字高，整页粘成一块"
  }
 ]

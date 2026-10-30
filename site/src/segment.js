@@ -180,12 +180,13 @@ export function analyze(img, options = {}) {
   const bgModel = backgroundModel(gray, W, H, p.bgDiv);
   const bgRow = new Float32Array(W);
   const rowInk = new Float32Array(H);
+  const colCount = new Uint32Array(sw); // 每列墨点数，用来判"中间有无整列空白"（双栏的沟）
   for (let y = 0; y < H; y++) {
     bgModel.fillRow(y, bgRow);
     const rowOff = y * W;
     let c = 0;
-    for (let x = xs0; x < xs1; x++) {
-      if (gray[rowOff + x] / (bgRow[x] || 1) < p.inkRatio) c++;
+    for (let x = 0; x < sw; x++) {
+      if (gray[rowOff + xs0 + x] / (bgRow[xs0 + x] || 1) < p.inkRatio) { c++; colCount[x]++; }
     }
     rowInk[y] = c;
   }
@@ -243,7 +244,11 @@ export function analyze(img, options = {}) {
   // 切分基准：小碎带归位后再取"上中位数"。用原始带高会随碎带数量漂（实测 124 vs 143，
   // 阈值差 7px 就够把一道题切成两段），归位后 JS 与 Python 落到同一档。
   med = medianUpper(work.map(([a, b]) => b - a));
-  const gapThresh = Math.max(2, med * p.gapRatio);
+  // 先算所有间距，再看"间距本身能不能分出两档"——印刷正文的行距是均匀的，
+  // 只按 band 高的比例切会把每行都切成一段；题目之间的间距则明显跳一档。
+  const allGaps = [];
+  for (let i = 1; i < work.length; i++) allGaps.push(work[i][0] - work[i - 1][1]);
+  const { thr: gapThresh, mode: thrMode } = pickThreshold(allGaps, med, p);
   const regions = [];
   const gaps = [];
   const risky = [];
@@ -259,14 +264,91 @@ export function analyze(img, options = {}) {
     }
   }
 
+  // 6) 两类"这工具干不了"的页面，早点说清楚，别等用户导出后才发现
+  const gutter = findGutter(colCount);
+  const dense = bands.length >= 25 && med < 0.02 * H;
+  // 整页粘成一两块：多半是纸面反光/阴影/墨太淡，行间空白没被识别出来
+  const glued = bands.length <= 2 && med > 0.12 * H;
+
+  // 顺序=重要性：先说"这页根本不适合"，再说"这儿你得看一眼"
+  const warnings = [];
+  if (gutter) {
+    warnings.push('疑似双栏页面：它只按单栏横排切，右栏会被并进左栏的段落，建议分两次或换工具');
+  }
+  if (glued) {
+    warnings.push('几乎没有识别到行间空白（整页像一整块）：可能是光线太暗、纸面反光或墨太淡，建议重拍或换个角度');
+  }
+  if (dense) {
+    warnings.push(`疑似印刷密排正文（${bands.length} 条细带）：行距与字高接近时会被按行切开，需逐行合并或换工具`);
+  }
+  // 已经说了"不适合"的时候，"哪几处间距可疑"就是噪音
+  if (risky.length && !gutter && !glued) {
+    warnings.push(`${risky.length} 处间距接近切分阈值（±30%），自动切分可能不准，建议手动核对`);
+  }
+
   return {
-    paper, xs: [xs0, xs1], bands, regions, gaps, risky,
-    medianBand: med, gapThresh, rowThresh: rowThr,
-    params: p, profile: sm,
-    warnings: risky.length
-      ? [`${risky.length} 处间距接近切分阈值（±30%），自动切分可能不准，建议手动核对`]
-      : [],
+    paper, xs: [xs0, xs1], bands, regions, gaps, risky, gutter,
+    medianBand: med, gapThresh, thrMode, rowThresh: rowThr,
+    params: p, profile: sm, warnings,
   };
+}
+
+/**
+ * 阈值怎么定：先看这页的间距有没有"明显两档"。
+ *
+ * 印刷/截图页的行距是一档、题间是一档，两档之间是**跳跃式**（实测 20px → 158px，7.9 倍）；
+ * 手写页的题间距挤在行距上面一点点（实测 51px → 55px，1.08 倍），没有跳跃。
+ * 所以在排序后的 gap 里找最大跳跃 g[i+1]/g[i]：≥2.2 倍、且上面至少还有 2 个 gap，
+ * 才认为存在两档，阈值取跳跃处中点；否则退回 med × gapRatio（手写页靠这条）。
+ *
+ * 只按基准阈值时，印刷正文会被按行切（实测 15 行 → 15 段，误切 3 倍）。
+ */
+export function pickThreshold(gaps, med, p) {
+  const base = Math.max(2, med * p.gapRatio);
+  const n = gaps.length;
+  if (n < 5) return { thr: base, mode: 'base' };
+  const g = Float64Array.from(gaps).sort();
+  let at = -1, bestRatio = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const r = g[i + 1] / Math.max(1, g[i]);
+    if (r > bestRatio) { bestRatio = r; at = i; }
+  }
+  if (at < 0 || bestRatio < 2.2 || n - 1 - at < 2) return { thr: base, mode: 'base' };
+  return { thr: Math.max(base, (g[at] + g[at + 1]) / 2), mode: 'two-tier' };
+}
+
+/**
+ * 找页面中间的"空白沟"：整列几乎没有墨、宽度够、左右两侧都各自有足够多的墨。
+ * 命中就是双栏排版——单栏切法在这种页面上必然切错，宁可提前警告。
+ */
+function findGutter(colCount) {
+  const n = colCount.length;
+  if (n < 40) return null;
+  let max = 0;
+  for (let i = 0; i < n; i++) if (colCount[i] > max) max = colCount[i];
+  if (max <= 0) return null;
+  const quiet = max * 0.06;
+  const minGap = Math.max(6, Math.round(n * 0.05));
+  const from = Math.floor(n * 0.2), to = Math.floor(n * 0.8);
+  let start = -1;
+  for (let i = from; i < to; i++) {
+    const empty = colCount[i] <= quiet;
+    if (empty && start < 0) start = i;
+    if ((!empty || i === to - 1) && start >= 0) {
+      const end = empty ? i + 1 : i;
+      if (end - start >= minGap) {
+        let left = 0, right = 0;
+        for (let k = 0; k < start; k++) left += colCount[k];
+        for (let k = end; k < n; k++) right += colCount[k];
+        const total = left + right;
+        if (total > 0 && left / total > 0.2 && right / total > 0.2) {
+          return { from: start, to: end };
+        }
+      }
+      start = -1;
+    }
+  }
+  return null;
 }
 
 /** 浮点数组分位（0..1） */

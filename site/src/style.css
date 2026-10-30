@@ -215,6 +215,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .lines { position: absolute; inset: 0; }
 
 .line {
+  touch-action: none;
   position: absolute;
   left: 0; right: 0;
   height: 0;
@@ -243,6 +244,15 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   display: grid; place-items: center;
   cursor: pointer;
 }
+
+.warnings {
+  margin: -4px 0 12px;
+  padding: 0 0 0 22px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #f5c06a;
+}
+.warnings li { margin: 2px 0; }
 
 .tip { font-size: 12px; color: var(--fg-dim); margin: 8px 2px 0; }
 
@@ -311,3 +321,13 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* 手机：工具栏压成三行，导出按钮独占一行、够大够近拇指 */
+@media (max-width: 480px) {
+  .toolbar { gap: 8px; margin: 12px 0 8px; }
+  .toolbar button { padding: 0 12px; font-size: 13px; min-height: 38px; }
+  .toolbar .slider { flex: 1 1 45%; }
+  #btn-zip { flex: 1 1 100%; order: 9; min-height: 44px; }
+  .status { font-size: 12.5px; padding: 8px 10px; }
+  .warnings { font-size: 12px; }
+}

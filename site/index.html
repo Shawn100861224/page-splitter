@@ -7,7 +7,7 @@
 <meta name="description" content="上传一张照片，自动识别文字区块并按题目切开，可手动调整分界线，一键导出 ZIP。图片不上传，全部在本机浏览器里完成。">
 <meta name="theme-color" content="#0f1115">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✂️</text></svg>">
-<link rel="stylesheet" href="./src/style.css?v=1">
+<link rel="stylesheet" href="./src/style.css?v=3">
 </head>
 <body>
 <header class="top">
@@ -42,12 +42,14 @@
         <span>留白 <output id="out-pad">28</output>px</span>
         <input id="pad" type="range" min="0" max="80" step="2" value="28">
       </label>
+      <button id="btn-undo" class="ghost" type="button" disabled title="撤销上一次分界修改（Ctrl+Z）">撤销</button>
       <button id="btn-auto" class="ghost" type="button">重新分区</button>
       <button id="btn-add" class="ghost" type="button">+ 加一条分界</button>
       <button id="btn-zip" class="primary" type="button">导出 ZIP</button>
     </div>
 
     <p id="status" class="status" hidden></p>
+    <ul id="warnings" class="warnings" hidden></ul>
 
     <div class="split">
       <div class="preview-wrap">
@@ -73,6 +75,6 @@
   </p>
 </footer>
 
-<script type="module" src="./src/main.js?v=1"></script>
+<script type="module" src="./src/main.js?v=2"></script>
 </body>
 </html>
