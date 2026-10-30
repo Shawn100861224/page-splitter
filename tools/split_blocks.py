@@ -116,6 +116,24 @@ def analyse_image(im, x0=0.12, x1=0.88, thr_ratio=0.40, ink_ratio=0.55,
 
     bands = [b for b in bands if not _is_edge_band(b)]
 
+    # 4.5) xs 扩到真实墨迹列范围（与 site/src/segment.js 一致）：
+    #      分析窗只取"够密的那一段"，但导出按 xs 裁，窗外的字会被整片切掉。
+    if bands:
+        # 用**全宽**背景重算一张墨迹图（与 JS 的 backgroundModel 同口径）：
+        # 分析窗内的 ink 只有 sw 列，拿它判断窗外有没有字是错的（下标还是窗内偏移）。
+        bgs = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8)).resize(
+            (max(4, W // bg_div), max(4, H // bg_div)), Image.BILINEAR)
+        bgf = np.maximum(np.asarray(bgs.resize((W, H), Image.BILINEAR), dtype=np.float32), 1.0)
+        ra, rb = bands[0][0], bands[-1][1]
+        # 1.2% 行数起步：桌面/阴影列只有零散几个像素，真文字列远高于此
+        need = max(4, int(round((rb - ra) * 0.012)))
+        colcnt = ((a[ra:rb] / bgf[ra:rb]) < ink_ratio).sum(axis=0)
+        hit = np.nonzero(colcnt >= need)[0]
+        if hit.size:
+            xs0 = min(xs0, int(hit[0]))
+            xs1 = max(xs1, int(hit[-1]) + 1)
+        del bgf, bgs
+
     regions, med, thr_gap, gaps = group(bands, gap_ratio)
     return dict(im=im, W=W, H=H, paper=paper, thr=thr, xs=[xs0, xs1],
                 bands=[[b[0], b[1]] for b in bands], regions=regions,

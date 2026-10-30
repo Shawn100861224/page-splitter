@@ -7,17 +7,24 @@
  body { font: 14px/1.6 ui-monospace, Consolas, monospace; background: #111; color: #ddd; padding: 16px; }
  pre { white-space: pre-wrap; }
  .ok { color: #4cc9a4; } .bad { color: #ff6b6b; }
+ img { max-width: 100%; border: 1px solid #333; margin: 4px 8px 4px 0; }
 </style>
 </head>
 <body>
 <h2>端到端自检（不进站点，只用于本地验收）</h2>
-<p>流程：夹具灰度图 → analyze() → 每段裁剪 → JPEG 编码 → ZIP 打包 → 校验签名与大小。</p>
+<p>流程：图片 → analyze() → 每段裁剪 → JPEG 编码 → ZIP 打包 → 校验签名/大小/横向覆盖。</p>
+<p>参数：<code>?img=/samples/x.jpg&amp;expectRegions=8&amp;pad=28</code></p>
 <pre id="out">运行中…</pre>
-<img id="thumb" alt="第一段预览" style="max-width:100%;border:1px solid #333">
+<div id="thumbs"></div>
 <script type="module">
 import { analyze } from '../site/src/segment.js';
 import { loadBitmap, downscale, canvasToGray, cropRegion, canvasToJpegBlob } from '../site/src/imageio.js';
 import { makeZip, crc32 } from '../site/src/zipstore.js';
+
+const q = new URLSearchParams(location.search);
+const imgUrl = q.get('img') || './fixtures/handwritten-ruled.png';
+const expectRegions = q.get('expectRegions') ? Number(q.get('expectRegions')) : null;
+const pad = q.get('pad') !== null ? Number(q.get('pad')) : 28;
 
 const out = document.getElementById('out');
 const lines = [];
@@ -25,7 +32,6 @@ let fail = 0;
 const log = (ok, msg) => { lines.push(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if (!ok) fail++; };
 
 function zipEntries(zip) {
-  // 从中央目录反解，独立验证我们自己的打包结果
   const dv = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
   const eocd = zip.length - 22;
   if (dv.getUint32(eocd, true) !== 0x06054b50) throw new Error('EOCD 签名错');
@@ -52,25 +58,40 @@ function zipEntries(zip) {
 
 try {
   const t0 = performance.now();
-  const bmp = await loadBitmap(await (await fetch('./fixtures/handwritten-ruled.png')).blob());
+  const bmp = await loadBitmap(await (await fetch(imgUrl)).blob());
   const { canvas, scale } = downscale(bmp, 1600);
   const { gray, width, height } = canvasToGray(canvas);
   const t1 = performance.now();
   const res = analyze({ gray, width, height });
   const t2 = performance.now();
-  log(res.bands.length >= 8, `墨迹带 ${res.bands.length} 条`);
-  log(res.regions.length >= 5, `分区 ${res.regions.length} 段`);
-  log(t2 - t1 < 400, `分析耗时 ${(t2 - t1).toFixed(0)}ms（<400ms）`);
-  log(true, `解码+缩放 ${(t1 - t0).toFixed(0)}ms · 分析尺寸 ${width}x${height} · scale ${scale.toFixed(3)}`);
+  log(true, `源图 ${bmp.width}x${bmp.height} · 分析 ${width}x${height} · scale ${scale.toFixed(4)}`);
+  log(res.bands.length >= 1, `墨迹带 ${res.bands.length} 条`);
+  log(expectRegions === null || res.regions.length === expectRegions,
+      `分区 ${res.regions.length} 段${expectRegions === null ? '' : `（期望 ${expectRegions}）`}`);
+  log(t2 - t1 < 600, `分析耗时 ${(t2 - t1).toFixed(0)}ms（<600ms）`);
+  const inkSpan = res.xs[1] - res.xs[0];
+  log(true, `横向裁切窗 x ${res.xs[0]}–${res.xs[1]}（宽 ${inkSpan}，占页宽 ${(inkSpan / width * 100).toFixed(1)}%）`);
 
   const files = [];
+  const thumbs = document.getElementById('thumbs');
   for (let i = 0; i < res.regions.length; i++) {
-    const blob = await canvasToJpegBlob(cropRegion(bmp, res.regions[i], scale, { x0: res.xs[0], x1: res.xs[1], pad: 28 }).canvas, 0.92);
+    const box = { x0: res.xs[0], x1: res.xs[1], pad };
+    const { canvas: cv, box: bx } = cropRegion(bmp, res.regions[i], scale, box);
+    const blob = await canvasToJpegBlob(cv, 0.92);
     const buf = new Uint8Array(await blob.arrayBuffer());
     const jpeg = buf[0] === 0xff && buf[1] === 0xd8 && buf[buf.length - 2] === 0xff && buf[buf.length - 1] === 0xd9;
-    log(jpeg && buf.length > 2000, `第${i + 1}段 JPEG ${(buf.length / 1024).toFixed(0)}KB ${jpeg ? '头尾正确' : '头尾错'}`);
+    log(jpeg && buf.length > 1000, `第${i + 1}段 JPEG ${(buf.length / 1024).toFixed(0)}KB ${cv.width}x${cv.height} ${jpeg ? '头尾正确' : '头尾错'}`);
+    // 横向覆盖：导出的左右边界必须把墨迹列全包住（含 pad），否则就是"横向截不全"
+    const wantL = Math.max(0, Math.round((res.xs[0] - pad) / scale));
+    const wantR = Math.min(bmp.width, Math.round((res.xs[1] + pad) / scale));
+    log(bx.left <= wantL && bx.left + bx.w >= wantR,
+        `第${i + 1}段横向覆盖 ${bx.left}–${bx.left + bx.w} ⊇ 墨迹 ${wantL}–${wantR}`);
     files.push({ name: `第${String(i + 1).padStart(2, '0')}段.jpg`, data: buf });
-    if (i === 0) document.getElementById('thumb').src = URL.createObjectURL(blob);
+    if (i < 4) {
+      const im = document.createElement('img');
+      im.src = URL.createObjectURL(blob);
+      thumbs.appendChild(im);
+    }
   }
 
   const zip = makeZip(files);

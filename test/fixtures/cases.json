@@ -43,5 +43,32 @@
   "kind": "dense",
   "expect": "baseline",
   "note": "合成：印刷密排，行距≈字高，整页粘成一块"
+ },
+ {
+  "slug": "handwritten-ruled-2",
+  "source": "handwritten-ruled.jpg",
+  "width": 756,
+  "height": 1008,
+  "kind": "handwriting",
+  "expect": "match",
+  "note": "手写横线笔记本，侧光阴影+底部桌面，人工核对 8 段"
+ },
+ {
+  "slug": "strip-algebra",
+  "source": "strip-algebra.jpg",
+  "width": 1008,
+  "height": 256,
+  "kind": "strip",
+  "expect": "match",
+  "note": "2355x599 横条长图：横向内容顶到图边，测左右不裁"
+ },
+ {
+  "slug": "exam-print-2",
+  "source": "exam-print.jpg",
+  "width": 713,
+  "height": 1008,
+  "kind": "print",
+  "expect": "match",
+  "note": "合成：印刷题册，行距 20 / 题间 158（两档跳跃）"
  }
 ]

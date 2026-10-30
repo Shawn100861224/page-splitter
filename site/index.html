@@ -7,7 +7,7 @@
 <meta name="description" content="上传一张照片，自动识别文字区块并按题目切开，可手动调整分界线，一键导出 ZIP。图片不上传，全部在本机浏览器里完成。">
 <meta name="theme-color" content="#0f1115">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✂️</text></svg>">
-<link rel="stylesheet" href="./src/style.css?v=3">
+<link rel="stylesheet" href="./src/style.css?v=4">
 </head>
 <body>
 <header class="top">
@@ -29,6 +29,35 @@
     <p class="drop-hint">支持 JPG / PNG / WebP 相机原图 · 也可以直接 Ctrl+V 粘贴截图</p>
     <input id="file" type="file" accept="image/*" hidden>
   </section>
+
+  <!-- 1.5 小介绍（不进编辑器，让人先知道这是干什么的） -->
+  <section class="intro" aria-label="这个工具能做什么">
+    <h2>它做什么</h2>
+    <p>把一页拍下来的习题，按题目切成若干张单图。自动先切一遍，切不准的地方你拖一下线就行，最后打包成 ZIP 下载。</p>
+    <ol class="steps">
+      <li><b>选图</b><span>点上面的方框，或把照片/截图直接拖进来、Ctrl+V 粘贴</span></li>
+      <li><b>调分界</b><span>红色横线可拖、点空白处加一条、点 × 删一条，Ctrl+Z 撤销</span></li>
+      <li><b>导出</b><span>一键打包 ZIP，也可以只下其中某一段</span></li>
+    </ol>
+    <div class="fit">
+      <div>
+        <h3>适合</h3>
+        <ul>
+          <li>横排单栏的手写笔记、习题本</li>
+          <li>印刷题册、讲义、手机截图</li>
+          <li>页面上有阴影、桌面入镜、光照不匀</li>
+        </ul>
+      </div>
+      <div>
+        <h3>不适合</h3>
+        <ul>
+          <li>竖排、双栏、表格（会提示，别硬用）</li>
+          <li>密排正文（会按行切，一页几十段）</li>
+          <li>拍得很糊 / 墨很淡（会漏带，需要手动补线）</li>
+        </ul>
+      </div>
+    </div>
+    <p class="intro-foot">全程在你的浏览器里算：不上传、无账号、无统计，断网也能用。</p>
 
   <!-- 2. 编辑器 -->
   <section id="editor" class="editor" hidden>
@@ -60,7 +89,7 @@
             <div id="lines" class="lines"></div>
           </div>
         </div>
-        <p class="tip">拖动横线调整分界 · 点横线右侧的 × 删除 · 点空白处加一条</p>
+        <p class="tip">拖动横线调整分界 · 点横线右侧的 × 删除 · 点空白处加一条 · 导出按墨迹左右边界裁，不会截字</p>
       </div>
 
       <ol id="list" class="list"></ol>

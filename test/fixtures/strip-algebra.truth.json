@@ -1,0 +1,43 @@
+{
+ "slug": "strip-algebra",
+ "source": "strip-algebra.jpg",
+ "width": 1008,
+ "height": 256,
+ "xs": [
+  8,
+  1008
+ ],
+ "bands": [
+  [
+   0,
+   6
+  ],
+  [
+   38,
+   175
+  ],
+  [
+   215,
+   253
+  ]
+ ],
+ "regions": [
+  [
+   0,
+   253
+  ]
+ ],
+ "median_band": 175.0,
+ "gap_thresh": 63.0,
+ "params": {
+  "ink_ratio": 0.55,
+  "bg_div": 16,
+  "merge_ratio": 0.1,
+  "row_thresh_ratio": 0.012,
+  "min_band_ratio": 0.006,
+  "gap_ratio": 0.36
+ },
+ "kind": "strip",
+ "expect": "match",
+ "note": "2355x599 横条长图：横向内容顶到图边，测左右不裁"
+}

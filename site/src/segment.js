@@ -218,6 +218,35 @@ export function analyze(img, options = {}) {
     return covered / sw < p.edgeCoverage; // 横向覆盖不足 60% → 是文字带，保留
   });
 
+  // 4.5) xs 扩到真实墨迹列范围：分析窗只保证"够密的那一段"，
+  // 而导出/缩略图按 xs 裁 —— 窗外的字会被整片切掉（实测一张 2355 宽的横条，
+  // 窗只到 2072，最右边一列矩阵数字没了）。这里用同一套局部对比判据找"有任何墨"的列。
+  if (bands.length) {
+    const rowA = bands[0][0];
+    const rowB = bands[bands.length - 1][1];
+    const span = Math.max(1, rowB - rowA);
+    // 1.2% 行数起步：桌面/阴影列只有零散几个像素，真文字列远高于此
+    const need = Math.max(4, Math.round(span * 0.012));
+    const cnt = new Uint16Array(W);
+    for (let y = rowA; y < rowB; y++) {
+      bgModel.fillRow(y, bgRow);
+      const rowOff = y * W;
+      for (let x = 0; x < W; x++) {
+        if (cnt[x] > need) continue; // 已经够数就不再数
+        if (gray[rowOff + x] / (bgRow[x] || 1) < p.inkRatio) cnt[x]++;
+      }
+    }
+    let xa = -1;
+    let xb = -1;
+    for (let x = 0; x < W; x++) {
+      if (cnt[x] >= need) { if (xa < 0) xa = x; xb = x; }
+    }
+    if (xa >= 0) {
+      xs0 = Math.min(xs0, xa);
+      xs1 = Math.max(xs1, xb + 1);
+    }
+  }
+
   // 5) 小碎带并到更近一侧 → 算间距 → 分区
   const bandHeights = bands.map(([a, b]) => b - a);
   let med = medianUpper(bandHeights); // 与 Python 同口径（len//2），两边才会归位同一批碎带
