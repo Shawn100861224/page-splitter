@@ -327,7 +327,9 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   .toolbar { gap: 8px; margin: 12px 0 8px; }
   .toolbar button { padding: 0 12px; font-size: 13px; min-height: 38px; }
   .toolbar .slider { flex: 1 1 45%; }
-  #btn-zip { flex: 1 1 100%; order: 9; min-height: 44px; }
+  /* 手机上「保存到相册」是主动作：独占一行、够大好点；ZIP 次之 */
+  #btn-save { flex: 1 1 100%; order: 8; min-height: 46px; font-size: 15px; }
+  #btn-zip { display: none; }        /* 手机上下载 ZIP 没意义（落进"文件"App），入口挪进保存面板 */
   .status { font-size: 12.5px; padding: 8px 10px; }
   .warnings { font-size: 12px; }
 }
@@ -387,4 +389,49 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 @media (max-width: 620px) {
   .steps { grid-template-columns: 1fr; }
   .fit { grid-template-columns: 1fr; }
+}
+
+/* 保存到相册的兜底面板：大图 + 长按提示 */
+dialog.gallery {
+  width: min(720px, 94vw);
+  max-height: 88vh;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg-soft);
+  color: var(--fg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
+  overflow: hidden;
+}
+dialog.gallery::backdrop { background: rgba(0, 0, 0, .6); }
+.gallery header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; border-bottom: 1px solid var(--line);
+}
+.gallery header b { font-size: 14px; }
+.gallery-tip { margin: 10px 14px 0; font-size: 12.5px; line-height: 1.7; color: var(--fg-dim); }
+.gallery-list {
+  display: grid; gap: 14px; padding: 12px 14px 18px;
+  max-height: 70vh; overflow: auto;
+}
+.gallery-list figure { margin: 0; }
+.gallery-list img {
+  display: block;
+  width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line);
+  -webkit-touch-callout: default; /* 允许 iOS 长按弹"存储到照片" */
+  user-select: auto;
+}
+.gallery-list figcaption {
+  display: flex; align-items: center; gap: 8px; margin-top: 6px;
+  font-size: 12px; color: var(--fg-dim);
+}
+
+.gallery-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.gallery-actions button, dialog.gallery header button { white-space: nowrap; }
+
+@media (max-width: 480px) {
+  dialog.gallery { width: 96vw; }
+  dialog.gallery header { flex-direction: column; align-items: stretch; gap: 8px; }
+  .gallery-actions { justify-content: flex-end; }
+  .gallery-actions button { min-height: 36px; }
 }

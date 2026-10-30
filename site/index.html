@@ -7,7 +7,7 @@
 <meta name="description" content="上传一张照片，自动识别文字区块并按题目切开，可手动调整分界线，一键导出 ZIP。图片不上传，全部在本机浏览器里完成。">
 <meta name="theme-color" content="#0f1115">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✂️</text></svg>">
-<link rel="stylesheet" href="./src/style.css?v=4">
+<link rel="stylesheet" href="./src/style.css?v=8">
 </head>
 <body>
 <header class="top">
@@ -37,7 +37,7 @@
     <ol class="steps">
       <li><b>选图</b><span>点上面的方框，或把照片/截图直接拖进来、Ctrl+V 粘贴</span></li>
       <li><b>调分界</b><span>红色横线可拖、点空白处加一条、点 × 删一条，Ctrl+Z 撤销</span></li>
-      <li><b>导出</b><span>一键打包 ZIP，也可以只下其中某一段</span></li>
+      <li><b>导出</b><span>手机点「保存到相册」直接进图库，电脑上打包 ZIP</span></li>
     </ol>
     <div class="fit">
       <div>
@@ -74,7 +74,8 @@
       <button id="btn-undo" class="ghost" type="button" disabled title="撤销上一次分界修改（Ctrl+Z）">撤销</button>
       <button id="btn-auto" class="ghost" type="button">重新分区</button>
       <button id="btn-add" class="ghost" type="button">+ 加一条分界</button>
-      <button id="btn-zip" class="primary" type="button">导出 ZIP</button>
+      <button id="btn-save" class="primary" type="button" hidden>保存到相册</button>
+      <button id="btn-zip" class="ghost" type="button">导出 ZIP</button>
     </div>
 
     <p id="status" class="status" hidden></p>
@@ -97,6 +98,18 @@
   </section>
 </main>
 
+<dialog id="dlg-gallery" class="gallery">
+  <header>
+    <b>长按图片 → 存到相册</b>
+    <span class="gallery-actions">
+      <button id="dlg-zip" class="ghost" type="button">打包 ZIP</button>
+      <button id="dlg-close" class="ghost" type="button">关闭</button>
+    </span>
+  </header>
+  <p class="gallery-tip">iOS：长按 → 「存储到照片」；安卓：长按 → 「下载图片」。也可以点每张下面的按钮单独下载。</p>
+  <div id="gallery-list" class="gallery-list"></div>
+</dialog>
+
 <footer class="foot">
   <p>
     纯前端，零后端：图片不离开本机浏览器，没有账号、没有上传、没有统计。
@@ -104,6 +117,6 @@
   </p>
 </footer>
 
-<script type="module" src="./src/main.js?v=2"></script>
+<script type="module" src="./src/main.js?v=9"></script>
 </body>
 </html>

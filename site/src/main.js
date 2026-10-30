@@ -15,7 +15,8 @@ const el = {
   editor: $('editor'),
   gap: $('gap'), pad: $('pad'), outGap: $('out-gap'), outPad: $('out-pad'),
   btnBack: $('btn-back'), btnAuto: $('btn-auto'), btnAdd: $('btn-add'), btnZip: $('btn-zip'),
-  btnUndo: $('btn-undo'),
+  btnUndo: $('btn-undo'), btnSave: $('btn-save'), dlgZip: $('dlg-zip'),
+  dlgGallery: $('dlg-gallery'), galleryList: $('gallery-list'), dlgClose: $('dlg-close'),
   status: $('status'), warnings: $('warnings'),
   stage: $('stage'), preview: $('preview'), overlay: $('overlay'),
   bands: $('bands'), lines: $('lines'), list: $('list'),
@@ -92,6 +93,7 @@ function runAnalyze() {
     w.length ? 'warn' : '');
   renderWarnings(w);
   render();
+  syncStatus();
 }
 
 /** 当前分区：内容上下边界 + 手改分界 */
@@ -163,6 +165,8 @@ function syncStatus() {
   const auto = S.result.regions.length;
   const extra = n === auto ? '' : `（手工调整：自动 ${auto} 段）`;
   setStatus(`${n} 段${extra}` + (risky ? ` · ${risky} 处间距接近阈值，建议核对` : ''), risky ? 'warn' : '');
+  el.btnZip.disabled = !n;            // 有分段才允许导出（此前只在读图时禁用、从未启用，是真 bug）
+  scheduleShareFiles();   // 段变了就把相册用的图片重新编码（防抖，拖完才跑）
 }
 
 function renderOverlay() {
@@ -366,6 +370,114 @@ async function exportZip() {
   }
 }
 
+
+/* ---------------- 保存到相册 ----------------
+ * iPhone 上 <a download> 只会落到「文件」，进不了相册。
+ * 进相册只有两条路：Web Share（系统分享面板 →「存储 N 项」）或长按图片保存。
+ * 分享必须在用户手势里同步调用，所以图片提前在后台缓存好，点击时直接交出 File[]。
+ */
+const share = { files: [], building: false, seq: 0, timer: 0 };
+
+function canShareFiles() {
+  try {
+    const probe = new File([new Uint8Array([0])], 'p.jpg', { type: 'image/jpeg' });
+    return !!(navigator.canShare && navigator.canShare({ files: [probe] }));
+  } catch (e) {
+    return false;
+  }
+}
+
+function updateSaveBtn() {
+  if (!el.btnSave) return;
+  const n = regions().length;
+  el.btnSave.hidden = false;      // 按钮常显：不支持系统分享时直接开长按面板
+  el.btnSave.disabled = !n;
+  if (share.building && !share.files.length && n) {
+    el.btnSave.textContent = `准备中 ${share.files.length}/${n}…`;
+  } else {
+    el.btnSave.textContent = canShareFiles() ? '保存到相册' : '保存图片';
+  }
+}
+
+/** 后台把每段编码成 JPEG File，供系统分享面板直接使用 */
+async function buildShareFiles() {
+  if (!S.result) { share.files = []; updateSaveBtn(); return; }
+  const seq = ++share.seq;
+  const rs = regions();
+  share.building = true;
+  const out = [];
+  for (let i = 0; i < rs.length; i++) {
+    if (seq !== share.seq) return;            // 有更新的一轮，放弃
+    try {
+      const blob = await regionToBlob(rs[i]);
+      out.push(new File([blob], `第${String(i + 1).padStart(2, '0')}段.jpg`, { type: 'image/jpeg' }));
+    } catch (err) {
+      console.warn('预编码失败', err);
+    }
+    if (seq === share.seq) { share.files = out.slice(); updateSaveBtn(); }
+  }
+  if (seq !== share.seq) return;
+  share.files = out;
+  share.building = false;
+  updateSaveBtn();
+}
+
+function scheduleShareFiles(delay = 250) {
+  clearTimeout(share.timer);
+  share.building = true;
+  share.files = [];
+  updateSaveBtn();
+  share.timer = setTimeout(buildShareFiles, delay);
+}
+
+async function saveToGallery() {
+  if (!S.result) return;
+  if (!share.files.length) {
+    setStatus(share.building ? '还在准备图片，稍等一秒再点' : '没有可保存的分段', 'warn');
+    return;
+  }
+  if (!canShareFiles()) {           // 桌面 Chrome / 微信内置浏览器等：走长按保存
+    openGalleryFallback();
+    setStatus('长按任意一张图片即可保存（电脑上点「下载」）');
+    return;
+  }
+  try {
+    await navigator.share({
+      files: share.files,
+      title: `切好的 ${share.files.length} 段`,
+    });
+    setStatus(`已交给系统：在弹出的面板里选「存储 ${share.files.length} 项」就进相册了`);
+  } catch (err) {
+    if (err && err.name === 'AbortError') return;   // 用户自己取消
+    console.warn('share 失败，改用长按保存', err);
+    openGalleryFallback();
+  }
+}
+
+/** 分享不可用时的兜底：把大图列出来让人长按保存 */
+function openGalleryFallback() {
+  el.galleryList.innerHTML = '';
+  share.files.forEach((f, i) => {
+    const box = document.createElement('figure');
+    const im = document.createElement('img');
+    im.src = URL.createObjectURL(f);
+    im.alt = `第 ${i + 1} 段`;
+    im.loading = 'lazy';
+    const cap = document.createElement('figcaption');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ghost';
+    btn.textContent = `下载第 ${i + 1} 段`;
+    btn.addEventListener('click', () => download(f, f.name));
+    cap.textContent = `第 ${String(i + 1).padStart(2, '0')} 段 · `;
+    cap.appendChild(btn);
+    box.append(im, cap);
+    el.galleryList.appendChild(box);
+  });
+  if (typeof el.dlgGallery.showModal === 'function') el.dlgGallery.showModal();
+  else el.dlgGallery.setAttribute('open', '');
+}
+
 /* ---------------- 事件绑定 ---------------- */
 el.drop.addEventListener('click', () => el.file.click());
 el.drop.addEventListener('keydown', (e) => {
@@ -456,6 +568,10 @@ el.overlay.addEventListener('click', (e) => {
 });
 
 el.btnZip.addEventListener('click', exportZip);
+if (el.dlgZip) el.dlgZip.addEventListener('click', exportZip);
+el.btnSave.addEventListener('click', saveToGallery);
+el.dlgClose.addEventListener('click', () => el.dlgGallery.close());
+el.dlgGallery.addEventListener('click', (e) => { if (e.target === el.dlgGallery) el.dlgGallery.close(); });
 el.btnUndo.addEventListener('click', undo);
 
 document.addEventListener('keydown', (e) => {
