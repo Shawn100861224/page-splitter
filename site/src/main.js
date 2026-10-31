@@ -299,7 +299,7 @@ function renderList() {
 
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = isMobile() && canShareFiles() ? '存到相册' : '下载';
+    btn.textContent = isMobile() ? '存到相册' : '下载';
     btn.addEventListener('click', () => exportOne(i, [y0, y1], btn));
 
     li.append(thumb, meta, btn);
@@ -348,28 +348,32 @@ async function exportOne(index, yRange, btn) {
   btn.disabled = true;
   btn.textContent = '…';
 
-  // 手机上单段也走系统分享：这样点哪一段就存哪一段，和绿色按钮同一条路（能进相册）。
-  // 必须用预编码好的 File 并且不 await 任何东西，iOS 才认这次点击。
-  const single = share.files[index];
-  // single 来自预编码缓存；面板重建时 scheduleShareFiles 会先清空它，天然保证不存旧图
-  if (isMobile() && canShareFiles() && single) {
-    try {
-      await navigator.share({ files: [single], title: name });
-      setStatus(`已交给系统：在面板里选「保存」即可存进相册（${name}）`);
-      return;
-    } catch (err) {
-      if (err && err.name === 'AbortError') return;
-      console.warn('单段分享失败，改用下载', err);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = label;
-    }
-  }
-
   try {
+    // 手机：能分享就弹系统面板（一步进相册）；不能分享就给这张大图，长按存相册。
+    // 两种情况都保证"点了有反应、且给出进相册的路"，不再静默落进"下载"文件夹。
+    if (isMobile()) {
+      let file = share.files[index];
+      if (!file || !canShareFiles()) {
+        const blob = await regionToBlob(yRange);
+        file = new File([blob], name, { type: 'image/jpeg' });
+      }
+      if (canShareFiles()) {
+        try {
+          await navigator.share({ files: [file], title: name });
+          setStatus(`已交给系统：在面板里选「保存」就进相册了（${name}）`);
+          return;
+        } catch (err) {
+          if (err && err.name === 'AbortError') return;
+          console.warn('单段分享失败，改成长按保存', err);
+        }
+      }
+      openGalleryFallback([file]);
+      setStatus('长按这张图 →「保存图片」就进相册了');
+      return;
+    }
+
     const blob = await regionToBlob(yRange);
     download(blob, name);
-    if (isMobile()) setStatus(`已下载 ${name}：在相册的「下载」里能找到`);
   } catch (err) {
     console.error(err);
     setStatus(`导出失败：${err.message || err}`, 'warn');
@@ -495,9 +499,10 @@ async function saveToGallery() {
 }
 
 /** 分享不可用时的兜底：把大图列出来让人长按保存 */
-function openGalleryFallback() {
+function openGalleryFallback(list) {
+  const files = Array.isArray(list) && list.length ? list : share.files;
   el.galleryList.innerHTML = '';
-  share.files.forEach((f, i) => {
+  files.forEach((f, i) => {
     const box = document.createElement('figure');
     const im = document.createElement('img');
     if (inAppBrowser) {
