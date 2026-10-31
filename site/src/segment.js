@@ -300,6 +300,20 @@ export function analyze(img, options = {}) {
     }
   }
 
+  // 5.5) 窄片合并（"后悔药"）：段高不到 0.6 × 中位行高，连半行都不到，肯定不是一道题
+  // （墨点、横线、纸边阴影造成的假段）。并进间距更小的邻段，直到没有这种碎片。
+  // 阈值不敢放大：实测真题里"一道单行短题"只有 0.9 × 行高，判据放到 1.5 倍会把真题也并掉。
+  if (regions.length >= 3) {
+    const merged = mergeNarrowRegions(regions, gaps, med);
+    if (merged.length !== regions.length) {
+      regions.length = 0;
+      regions.push(...merged.regions);
+      gaps.length = 0;
+      gaps.push(...merged.gaps);
+      risky.length = 0;   // 段变了，原来的"间距可疑"位置已经失效
+    }
+  }
+
   // 6) 两类"这工具干不了"的页面，早点说清楚，别等用户导出后才发现
   const gutter = findGutter(colCount);
   // 只按带数判断会误伤"细笔迹但切得对"的页面（35 条带却正好 7 段），所以要求实际段数也很多
@@ -397,6 +411,41 @@ function relaxedCandidates(gaps, med, p) {
  *
  * 只按基准阈值时，印刷正文会被按行切（实测 15 行 → 15 段，误切 3 倍）。
  */
+/**
+ * 窄片合并：段高 < 1.5 × 中位行高 的段不可能是"一道题"，并进间距更小的邻段。
+ * 每次都挑"最窄的那一段"先并，并完重新判断，避免一次并错方向。
+ * @returns {{regions: number[][], gaps: number[]}}
+ */
+export function mergeNarrowRegions(regions, gaps, med, limitRatio = 0.6) {
+  const cur = regions.map(r => [r[0], r[1]]);
+  const g = gaps.slice();
+  const limit = Math.max(4, med * limitRatio);
+  let guard = 0;
+  while (cur.length > 2 && guard++ < 200) {
+    let idx = -1;
+    let minH = Infinity;
+    for (let i = 0; i < cur.length; i++) {
+      const h = cur[i][1] - cur[i][0];
+      if (h < limit && h < minH) { minH = h; idx = i; }
+    }
+    if (idx < 0) break;
+    let toPrev;
+    if (idx === 0) toPrev = false;
+    else if (idx === cur.length - 1) toPrev = true;
+    else toPrev = (g[idx - 1] ?? Infinity) <= (g[idx] ?? Infinity);
+    if (toPrev) {
+      cur[idx - 1][1] = cur[idx][1];
+      g.splice(idx - 1, 1);
+      cur.splice(idx, 1);
+    } else {
+      cur[idx][1] = cur[idx + 1][1];
+      g.splice(idx, 1);
+      cur.splice(idx + 1, 1);
+    }
+  }
+  return { regions: cur, gaps: g };
+}
+
 export function pickThreshold(gaps, med, p) {
   const base = Math.max(2, med * p.gapRatio);
   const n = gaps.length;
