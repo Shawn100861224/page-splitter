@@ -17,6 +17,12 @@ const UA = navigator.userAgent;
 const inAppBrowser = /MicroMessenger|QQ\/|QQBrowser|Weibo/i.test(UA)
   || new URLSearchParams(location.search).has('inapp');   // ?inapp=1 用来在本机复现提示
 
+// 首页「适合 / 不适合」：宽屏展开，手机上收起（手机上首屏要留给选图和按钮）
+{
+  const fit = document.getElementById('fit-details');
+  if (fit && window.matchMedia('(min-width: 720px)').matches) fit.open = true;
+}
+
 const el = {
   drop: $('drop'), file: $('file'),
   editor: $('editor'),

@@ -33,31 +33,35 @@
   <!-- 1.5 小介绍（不进编辑器，让人先知道这是干什么的） -->
   <section class="intro" aria-label="这个工具能做什么">
     <h2>它做什么</h2>
-    <p>把一页拍下来的习题，按题目切成若干张单图。自动先切一遍，切不准的地方你拖一下线就行，最后打包成 ZIP 下载。</p>
+    <p>手机拍下一页习题，这里按题目切成几张单图：先自动切一遍，切不准的地方你拖一下红线，最后点「存到相册」进图库。</p>
     <ol class="steps">
-      <li><b>选图</b><span>点上面的方框，或把照片/截图直接拖进来、Ctrl+V 粘贴</span></li>
-      <li><b>调分界</b><span>红色横线可拖、点空白处加一条、点 × 删一条，Ctrl+Z 撤销</span></li>
-      <li><b>导出</b><span>手机点「保存到相册」直接进图库，电脑上打包 ZIP</span></li>
+      <li><b>选图</b><span>点上面的方框，从相册选一张照片（也可以直接拍）</span></li>
+      <li><b>调分界</b><span>红线可拖、点空白加一条、点 × 删一条，切错了能撤销</span></li>
+      <li><b>存相册</b><span>点「存到相册」，一段一段存或一次全存；电脑上是打包 ZIP</span></li>
     </ol>
-    <div class="fit">
-      <div>
-        <h3>适合</h3>
-        <ul>
-          <li>横排单栏的手写笔记、习题本</li>
-          <li>印刷题册、讲义、手机截图</li>
-          <li>页面上有阴影、桌面入镜、光照不匀</li>
-        </ul>
+    <details class="fit" id="fit-details">
+      <summary>什么图适合 · 什么图会切坏</summary>
+      <div class="fit-cols">
+        <div>
+          <h3>适合</h3>
+          <ul>
+            <li>横排单栏的手写笔记、习题本</li>
+            <li>印刷题册、讲义、手机截图</li>
+            <li>页面上有阴影、桌面入镜、光照不匀</li>
+          </ul>
+        </div>
+        <div>
+          <h3>不适合</h3>
+          <ul>
+            <li>竖排、双栏、表格（会提示，别硬用）</li>
+            <li>密排正文（会按行切，一页几十段）</li>
+            <li>拍得很糊 / 墨很淡（会漏带，需要手动补线）</li>
+          </ul>
+        </div>
       </div>
-      <div>
-        <h3>不适合</h3>
-        <ul>
-          <li>竖排、双栏、表格（会提示，别硬用）</li>
-          <li>密排正文（会按行切，一页几十段）</li>
-          <li>拍得很糊 / 墨很淡（会漏带，需要手动补线）</li>
-        </ul>
-      </div>
-    </div>
+    </details>
     <p class="intro-foot">全程在你的浏览器里算：不上传、无账号、无统计，断网也能用。</p>
+  </section>
 
   <!-- 2. 编辑器 -->
   <section id="editor" class="editor" hidden>
@@ -126,6 +130,6 @@
   </p>
 </footer>
 
-<script type="module" src="./src/main.js?v=24"></script>
+<script type="module" src="./src/main.js?v=25"></script>
 </body>
 </html>
