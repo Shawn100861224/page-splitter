@@ -310,6 +310,11 @@ export function analyze(img, options = {}) {
   if (dense) {
     warnings.push(`疑似印刷密排正文（${bands.length} 条细带）：行距与字高接近时会被按行切开，需逐行合并或换工具`);
   }
+  // 有多行却只切出 1 段：说明整页空隙都差不多，没找到"题间"那档更大的空白。
+  // 不提示的话用户会以为切好了，导出的其实是一整张长图。
+  if (regions.length === 1 && bands.length >= 4 && !glued && !gutter) {
+    warnings.push('只切出 1 段：没找到明显的题间空白（各处空隙差不多大）。把「灵敏度」往左拖一点再试，或直接点预览里的空白处手动加分界线');
+  }
   // 已经说了"不适合"的时候，"哪几处间距可疑"就是噪音
   if (risky.length && !gutter && !glued) {
     warnings.push(`${risky.length} 处间距接近切分阈值（±30%），自动切分可能不准，建议手动核对`);
