@@ -2,9 +2,9 @@
  * main.js — 页面交互：选图 → 自动分区 → 手改分界 → 导出 ZIP
  * 全部在本机完成，不发任何网络请求。
  */
-import { analyze, DEFAULTS } from './segment.js?v=17';
+import { analyze, DEFAULTS } from './segment.js?v=18';
 import {
-  loadBitmap, downscale, canvasToGray, cropRegion, canvasToJpegBlob, bitmapSize,
+  loadBitmap, downscale, canvasToGray, cropRegion, canvasToJpegBlob, bitmapSize, rotate90,
 } from './imageio.js';
 import { makeZip } from './zipstore.js';
 
@@ -39,6 +39,7 @@ const el = {
 const S = {
   bmp: null,
   analysis: null,   // { canvas, scale, width, height }
+  base: null,       // 摆正方向后的源（横拍照片被转过 90°）
   gray: null,
   result: null,
   dividers: [],     // 内部分界线的 y（分析坐标系）
@@ -71,8 +72,17 @@ async function openFile(file) {
   el.btnZip.disabled = true;
   try {
     S.bmp = await loadBitmap(file);
-    S.analysis = downscale(S.bmp);
+    // 横着拍的照片（纸转了 90°）先摆正：分析只认"行"，方向反了就只会切出 1 段。
+    S.base = S.bmp;
+    S.analysis = downscale(S.base);
     S.gray = canvasToGray(S.analysis.canvas);
+    for (let k = 0; k < 2; k++) {
+      const probe = analyze(S.gray, { gapRatio: S.gapRatio, count: S.count });
+      if (!probe.needRotate) break;
+      S.base = rotate90(S.base);
+      S.analysis = downscale(S.base);
+      S.gray = canvasToGray(S.analysis.canvas);
+    }
     el.drop.hidden = true;
     el.editor.hidden = false;
     drawPreview();
@@ -334,7 +344,7 @@ function box() {
 }
 
 async function regionToBlob(yRange) {
-  const { canvas } = cropRegion(S.bmp, yRange, S.analysis.scale, box());
+  const { canvas } = cropRegion(S.base || S.bmp, yRange, S.analysis.scale, box());
   return canvasToJpegBlob(canvas, 0.92);
 }
 
@@ -608,6 +618,7 @@ function backToDrop() {
   el.drop.hidden = false;
   el.file.value = '';
   S.bmp = null;
+  S.base = null;
   S.result = null;
   share.files = [];
   share.dirty = true;

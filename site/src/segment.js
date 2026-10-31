@@ -211,6 +211,17 @@ export function analyze(img, options = {}) {
     runY = [];
   }
 
+  // 2.8) 方向自检：文字行的方向应该有很多"空行"。
+  // 横着拍的照片（纸转了 90°）正好相反——行剖面几乎处处有墨，列剖面才一条条空白。
+  // 实测：正常页 行低谷/列低谷 = 3.2~13；横放页 = 0.12。判据用 0.8 非常安全。
+  let maxRow = 0, maxCol = 0;
+  for (let y = 0; y < H; y++) if (rowInk[y] > maxRow) maxRow = rowInk[y];
+  for (let x = 0; x < sw; x++) if (colCount[x] > maxCol) maxCol = colCount[x];
+  let rowLow = 0, colLow = 0;
+  for (let y = 0; y < H; y++) if (rowInk[y] < maxRow * 0.05) rowLow++;
+  for (let x = 0; x < sw; x++) if (colCount[x] < maxCol * 0.05) colLow++;
+  const needRotate = maxRow > 0 && maxCol > 0 && rowLow * sw < colLow * H * 0.8;
+
   // 3) 平滑 + 行阈值
   const k = Math.max(3, (Math.round(H * p.smoothRatio) | 1));
   const sm = smoothProfile(rowInk, k);
@@ -396,7 +407,7 @@ export function analyze(img, options = {}) {
 
   return {
     paper, xs: [xs0, xs1], bands, regions, gaps, risky, gutter,
-    medianBand: med, gapThresh, thrMode, rowThresh: rowThr,
+    medianBand: med, gapThresh, thrMode, rowThresh: rowThr, needRotate,
     params: p, profile: sm, warnings,
   };
 }

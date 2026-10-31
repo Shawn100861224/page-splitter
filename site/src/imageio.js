@@ -77,6 +77,21 @@ export function canvasToGray(canvas) {
 }
 
 /**
+ * 把画布 / 位图顺时针转 90°：横着拍的照片要先摆正，才能按行切。
+ * 返回原生分辨率的 canvas，导出时用它当源。
+ */
+export function rotate90(src) {
+  const c = document.createElement('canvas');
+  c.width = src.height;
+  c.height = src.width;
+  const g = c.getContext('2d');
+  g.translate(c.width, 0);
+  g.rotate(Math.PI / 2);
+  g.drawImage(src, 0, 0);
+  return c;
+}
+
+/**
  * 全分辨率裁剪一段。
  * @param {ImageBitmap|HTMLImageElement} bmp 原图
  * @param {[number, number]} yRange 分析坐标系下的 [y0, y1)
