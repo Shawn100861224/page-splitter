@@ -201,8 +201,10 @@ export function analyze(img, options = {}) {
   for (let y = 0; y <= H; y++) {
     const hit = y < H && rowInk[y] >= ruledThr;
     if (hit) { runY.push(y); continue; }
-    // 只认"细"的高覆盖行组：格线一般 1~6px 厚。厚块是涂黑/大面积阴影，是真内容，别动。
-    if (runY.length >= 1 && runY.length <= 6) {
+    // 只认"细"的高覆盖行组。厚度必须按页高取相对值：相机原图 4000px 高时
+    // 一条格线就有 8~20px 厚，写死 6px 会让高分辨率原图完全失效（实测同一页：
+    // 959px 宽切 2 段，放大到 2877px 宽就退化成 10 段）。
+    if (runY.length >= 1 && runY.length <= Math.max(4, Math.round(H * 0.006))) {
       for (const yy of runY) rowInk[yy] = 0;
       ruledRows += runY.length;
     }
