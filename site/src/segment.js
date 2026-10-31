@@ -277,25 +277,33 @@ export function analyze(img, options = {}) {
   // 只按 band 高的比例切会把每行都切成一段；题目之间的间距则明显跳一档。
   const allGaps = [];
   for (let i = 1; i < work.length; i++) allGaps.push(work[i][0] - work[i - 1][1]);
-  const { thr: gapThresh, mode: thrMode } = pickThreshold(allGaps, med, p);
-  const regions = [];
-  const gaps = [];
-  const risky = [];
-  if (work.length) {
-    regions.push([work[0][0], work[0][1]]);
-    for (let i = 1; i < work.length; i++) {
-      const g = work[i][0] - work[i - 1][1];
-      gaps.push(g);
-      const ratio = gapThresh ? g / gapThresh : 0;
-      if (ratio >= 0.7 && ratio <= 1.3) risky.push({ gap: g, ratio, at: work[i - 1][1] });
-      if (g > gapThresh) regions.push([work[i][0], work[i][1]]);
-      else regions[regions.length - 1][1] = work[i][1];
+  let { thr: gapThresh, mode: thrMode } = pickThreshold(allGaps, med, p);
+  let { regions, gaps, risky } = splitByThreshold(work, gapThresh);
+
+  // 切得太碎（>=10 段）时再试一档更宽松的阈值：密排手写的题距常常只比行距大一半，
+  // 严格两档判据（2.2 倍）会退化成按行切，用户看到几十条红线只能一条条删。
+  // 只有段数显著减少（<=71%）才采用，避免把本来正确的细分并粗。
+  if (regions.length >= 10) {
+    let best = null;
+    for (const t of relaxedCandidates(allGaps, med, p)) {
+      if (t <= gapThresh) continue;
+      const alt = splitByThreshold(work, t);
+      if (alt.regions.length < 2 || alt.regions.length * 1.4 > regions.length) continue;
+      if (!best || alt.regions.length < best.regions.length) best = { ...alt, thr: t };
+    }
+    if (best) {
+      regions = best.regions;
+      gaps = best.gaps;
+      risky = best.risky;
+      gapThresh = best.thr;
+      thrMode = 'relaxed';
     }
   }
 
   // 6) 两类"这工具干不了"的页面，早点说清楚，别等用户导出后才发现
   const gutter = findGutter(colCount);
-  const dense = bands.length >= 25 && med < 0.02 * H;
+  // 只按带数判断会误伤"细笔迹但切得对"的页面（35 条带却正好 7 段），所以要求实际段数也很多
+  const dense = bands.length >= 25 && med < 0.02 * H && regions.length >= 15;
   // 整页粘成一两块：多半是纸面反光/阴影/墨太淡，行间空白没被识别出来
   const glued = bands.length <= 2 && med > 0.12 * H;
 
@@ -315,6 +323,11 @@ export function analyze(img, options = {}) {
   if (regions.length === 1 && bands.length >= 4 && !glued && !gutter) {
     warnings.push('只切出 1 段：没找到明显的题间空白（各处空隙差不多大）。把「灵敏度」往左拖一点再试，或直接点预览里的空白处手动加分界线');
   }
+  // 切得很碎：这页行距和题距差不多，用户会看到一大堆红线（真实反馈："每张都有这么多红线"）。
+  // 给出可操作的两条出路，而不是让他一条条去删。
+  if (regions.length >= 10 && !dense && !glued && !gutter) {
+    warnings.push(`切得很碎（${regions.length} 段）：这页的行距和题距差不多，把「灵敏度」往左拖再点「重新分区」，也可以点红线右侧的 × 只删掉多余的`);
+  }
   // 已经说了"不适合"的时候，"哪几处间距可疑"就是噪音
   if (risky.length && !gutter && !glued) {
     warnings.push(`${risky.length} 处间距接近切分阈值（±30%），自动切分可能不准，建议手动核对`);
@@ -325,6 +338,53 @@ export function analyze(img, options = {}) {
     medianBand: med, gapThresh, thrMode, rowThresh: rowThr,
     params: p, profile: sm, warnings,
   };
+}
+
+/** 按给定间距阈值把行带合成段（阈值以上的间距就切一刀） */
+function splitByThreshold(work, thr) {
+  const regions = [];
+  const gaps = [];
+  const risky = [];
+  if (work.length) {
+    regions.push([work[0][0], work[0][1]]);
+    for (let i = 1; i < work.length; i++) {
+      const g = work[i][0] - work[i - 1][1];
+      gaps.push(g);
+      const ratio = thr ? g / thr : 0;
+      if (ratio >= 0.7 && ratio <= 1.3) risky.push({ gap: g, ratio, at: work[i - 1][1] });
+      if (g > thr) regions.push([work[i][0], work[i][1]]);
+      else regions[regions.length - 1][1] = work[i][1];
+    }
+  }
+  return { regions, gaps, risky };
+}
+
+/**
+ * 已经切碎时用的候选阈值（只在 >=10 段时尝试）：
+ *  1) 宽松两档——跳跃只要 1.6 倍、上面至少 3 个间距；
+ *  2) gap 的 90 分位——只切最宽的那一成空隙，天然不会切碎。
+ * 谁能让段数显著减少就用谁，都不行就保持原结果。
+ */
+function relaxedCandidates(gaps, med, p) {
+  const base = Math.max(2, med * p.gapRatio);
+  const floor = Math.max(2, med * 0.35);
+  const out = [];
+  const cand = gaps.filter((v) => v >= floor).slice().sort((a, b) => a - b);
+  const m = cand.length;
+  if (m >= 5) {
+    let at = -1, best = 0;
+    for (let i = 0; i < m - 1; i++) {
+      const r = cand[i + 1] / Math.max(1, cand[i]);
+      if (r > best) { best = r; at = i; }
+    }
+    if (at >= 0 && best >= 1.6 && m - 1 - at >= 3) {
+      out.push(Math.max(base, (cand[at] + cand[at + 1]) / 2));
+    }
+  }
+  if (m >= 6) {
+    out.push(Math.max(base, cand[Math.min(m - 1, Math.floor(m * 0.9))]));
+  }
+  return [...new Set(out)].sort((a, b) => b - a);
 }
 
 /**
