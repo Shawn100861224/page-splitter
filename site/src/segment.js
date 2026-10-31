@@ -20,7 +20,8 @@ export const DEFAULTS = Object.freeze({
   rowThreshRatio: 0.012, // 行阈值下限 = 页宽 × 0.012
   rowThreshP99: 0.05,    // 行阈值 = max(下限, 行剖面 99 分位 × 0.05)
   minBandRatio: 0.006,   // 最短墨迹带 = 0.6% 图高
-  gapRatio: 0.36,        // 间距 > 该值 × 中位带高 就切开
+  gapRatio: 0.36,
+  count: 0,              // >0 时按"这页几道题"取最大的 K-1 个空白切        // 间距 > 该值 × 中位带高 就切开
   smallBandRatio: 0.5,   // 高度 < 中位带高×0.5 视为小碎带，并到更近一侧
   edgeY: 0.85,           // 页面边缘线剔除：只在下部 15% 找
   edgeMaxH: 0.02,        // 边缘线高度上限 = 2% 图高
@@ -278,12 +279,22 @@ export function analyze(img, options = {}) {
   const allGaps = [];
   for (let i = 1; i < work.length; i++) allGaps.push(work[i][0] - work[i - 1][1]);
   let { thr: gapThresh, mode: thrMode } = pickThreshold(allGaps, med, p);
-  let { regions, gaps, risky } = splitByThreshold(work, gapThresh);
+  // 用户说了"这页几道题"就按最大的 K-1 个空白切（实测三张真实笔记，理想切点恰好是最大的那几个）；
+  // 没说的话走自动阈值这条线。
+  const wantCount = Number.isFinite(p.count) && p.count >= 2 ? Math.round(p.count) : 0;
+  let regions, gaps, risky;
+  const byCount = wantCount >= 2 && work.length > wantCount - 1;
+  if (byCount) {
+    ({ regions, gaps, risky } = splitByIndices(work, topGapIndices(allGaps, wantCount - 1)));
+    thrMode = 'count';
+  } else {
+    ({ regions, gaps, risky } = splitByThreshold(work, gapThresh));
+  }
 
   // 切得太碎（>=10 段）时再试一档更宽松的阈值：密排手写的题距常常只比行距大一半，
   // 严格两档判据（2.2 倍）会退化成按行切，用户看到几十条红线只能一条条删。
   // 只有段数显著减少（<=71%）才采用，避免把本来正确的细分并粗。
-  if (regions.length >= 10) {
+  if (!byCount && regions.length >= 10) {
     let best = null;
     for (const t of relaxedCandidates(allGaps, med, p)) {
       if (t <= gapThresh) continue;
@@ -300,10 +311,27 @@ export function analyze(img, options = {}) {
     }
   }
 
+  // 5.4) 丢掉几乎没墨的段：页底空白、背面透字、页边阴影会被当成一条墨迹带，
+  // 切完就成了"第 4 段是一张白纸"。用行墨密度跟本页中位数比，低于 12% 的直接丢弃。
+  if (regions.length > 1) {
+    const dens = regions.map(([a, b]) => {
+      let s = 0;
+      for (let y = a; y < b; y++) s += rowInk[y];
+      return s / Math.max(1, (b - a) * sw);
+    });
+    const ref = dens.slice().sort((x, y) => x - y)[dens.length >> 1];
+    const keep = regions.filter((_, i) => dens[i] >= ref * 0.12);
+    if (keep.length >= 1 && keep.length < regions.length) {
+      regions.length = 0;
+      regions.push(...keep);
+      risky.length = 0;
+    }
+  }
+
   // 5.5) 窄片合并（"后悔药"）：段高不到 0.6 × 中位行高，连半行都不到，肯定不是一道题
   // （墨点、横线、纸边阴影造成的假段）。并进间距更小的邻段，直到没有这种碎片。
   // 阈值不敢放大：实测真题里"一道单行短题"只有 0.9 × 行高，判据放到 1.5 倍会把真题也并掉。
-  if (regions.length >= 3) {
+  if (!byCount && regions.length >= 3) {
     const merged = mergeNarrowRegions(regions, gaps, med);
     if (merged.length !== regions.length) {
       regions.length = 0;
@@ -399,6 +427,39 @@ function relaxedCandidates(gaps, med, p) {
     out.push(Math.max(base, cand[Math.min(m - 1, Math.floor(m * 0.9))]));
   }
   return [...new Set(out)].sort((a, b) => b - a);
+}
+
+/**
+ * 用户直接告诉工具"这页有几道题"时，按**最大的 K-1 个空白**切。
+ *
+ * 为什么这个信号最可靠：实测三张真实手写笔记（3/3/4 道题），理想切点恰好是
+ * 该页最大的 3 个间距——题与题之间总比题内的行距空得多；而"题号"本身
+ * 在纸上和正文之间只有 1~10px 缝隙（连写），几何上根本抓不出来（tools/probe_numbers.py 实测 0 命中）。
+ * 所以把"认题号"这一步交给人眼（他拍照时本来就知道有几题），工具只负责切得准。
+ */
+export function splitByIndices(work, cutIdx) {
+  const regions = [];
+  const gaps = [];
+  const risky = [];
+  if (work.length) {
+    regions.push([work[0][0], work[0][1]]);
+    for (let i = 1; i < work.length; i++) {
+      const g = work[i][0] - work[i - 1][1];
+      gaps.push(g);
+      if (cutIdx.has(i - 1)) regions.push([work[i][0], work[i][1]]);
+      else regions[regions.length - 1][1] = work[i][1];
+    }
+  }
+  return { regions, gaps, risky };
+}
+
+/** 取出最大的 k 个间距的下标（k 超过可用间距数时全部返回） */
+export function topGapIndices(gaps, k) {
+  return new Set(gaps
+    .map((g, i) => ({ g, i }))
+    .sort((a, b) => b.g - a.g)
+    .slice(0, Math.max(0, Math.min(k, gaps.length)))
+    .map(({ i }) => i));
 }
 
 /**

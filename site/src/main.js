@@ -2,7 +2,7 @@
  * main.js — 页面交互：选图 → 自动分区 → 手改分界 → 导出 ZIP
  * 全部在本机完成，不发任何网络请求。
  */
-import { analyze, DEFAULTS } from './segment.js?v=12';
+import { analyze, DEFAULTS } from './segment.js?v=14';
 import {
   loadBitmap, downscale, canvasToGray, cropRegion, canvasToJpegBlob, bitmapSize,
 } from './imageio.js';
@@ -26,7 +26,7 @@ const inAppBrowser = /MicroMessenger|QQ\/|QQBrowser|Weibo/i.test(UA)
 const el = {
   drop: $('drop'), file: $('file'),
   editor: $('editor'),
-  gap: $('gap'), pad: $('pad'), outGap: $('out-gap'), outPad: $('out-pad'),
+  gap: $('gap'), pad: $('pad'), count: $('count'), outGap: $('out-gap'), outPad: $('out-pad'),
   btnBack: $('btn-back'), btnAuto: $('btn-auto'), btnAdd: $('btn-add'), btnZip: $('btn-zip'),
   btnUndo: $('btn-undo'), btnSave: $('btn-save'), dlgZip: $('dlg-zip'), dlgAll: $('dlg-all'),
   dlgGallery: $('dlg-gallery'), galleryList: $('gallery-list'), dlgClose: $('dlg-close'),
@@ -43,6 +43,7 @@ const S = {
   result: null,
   dividers: [],     // 内部分界线的 y（分析坐标系）
   pad: Number(el.pad.value),
+  count: 0,          // 用户填的"这页几道题"，0 = 自动
   gapRatio: Number(el.gap.value) / 100,
   thumbUrls: [],
 };
@@ -97,7 +98,7 @@ function drawPreview() {
 /* ---------------- 分析 ---------------- */
 function runAnalyze() {
   const t0 = performance.now();
-  S.result = analyze(S.gray, { gapRatio: S.gapRatio });
+  S.result = analyze(S.gray, { gapRatio: S.gapRatio, count: S.count });
   S.dividers = S.result.regions.slice(1).map((r) => r[0]);
   history.length = 0;
   updateUndo();
@@ -584,6 +585,16 @@ el.gap.addEventListener('input', () => {
   el.outGap.textContent = S.gapRatio.toFixed(2);
 });
 el.gap.addEventListener('change', () => { if (S.result) runAnalyze(); });
+
+// 「这页几道题」：填了就按最大的 K-1 个空白切，清空就回到自动
+const parseCount = () => {
+  const v = Math.round(Number(el.count.value));
+  return Number.isFinite(v) && v >= 2 && v <= 20 ? v : 0;
+};
+el.count.addEventListener('change', () => {
+  S.count = parseCount();
+  if (S.result) runAnalyze();
+});
 
 el.pad.addEventListener('input', () => {
   S.pad = Number(el.pad.value);

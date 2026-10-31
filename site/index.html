@@ -7,7 +7,7 @@
 <meta name="description" content="上传一张照片，自动识别文字区块并按题目切开，可手动调整分界线，一键导出 ZIP。图片不上传，全部在本机浏览器里完成。">
 <meta name="theme-color" content="#0f1115">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✂️</text></svg>">
-<link rel="stylesheet" href="./src/style.css?v=12">
+<link rel="stylesheet" href="./src/style.css?v=13">
 </head>
 <body>
 <header class="top">
@@ -72,6 +72,11 @@
         <input id="gap" type="range" min="26" max="90" step="2" value="36">
         <em class="slider-hint">左＝切得细　右＝只切大空白</em>
       </label>
+      <label class="slider count-field">
+        <span>这页几道题</span>
+        <input id="count" type="number" min="1" max="20" step="1" inputmode="numeric" placeholder="自动"
+               title="填了就按「最大的几处空白」切这么多个段；不填＝自动判断">
+      </label>
       <label class="slider">
         <span>留白 <output id="out-pad">28</output>px</span>
         <input id="pad" type="range" min="0" max="80" step="2" value="28">
@@ -131,6 +136,6 @@
   </p>
 </footer>
 
-<script type="module" src="./src/main.js?v=28"></script>
+<script type="module" src="./src/main.js?v=30"></script>
 </body>
 </html>
