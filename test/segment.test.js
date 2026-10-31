@@ -113,6 +113,29 @@ test('rgbaToGray 与 Pillow "L" 同向', () => {
   assert.ok(Math.abs(g[2] - 76) <= 2, `纯红应约 76，实际 ${g[2]}`);
 });
 
+test('横线笔记本：深色格线不该把一页切成按行碎段', () => {
+  // 实拍：横线本的线被当成墨 → 每行都是"墨迹带" → 3 道题切成 19 段。
+  const W = 900, H = 1400;
+  const gray = new Uint8Array(W * H).fill(245);
+  for (let y = 80; y < H - 40; y += 46) {
+    for (let dy = 0; dy < 2; dy++) for (let x = 36; x < 864; x++) gray[(y + dy) * W + x] = 120;
+  }
+  let base = 110;
+  for (let g = 0; g < 3; g++) {
+    for (let l = 0; l < 4; l++) {
+      const y = base + l * 30;
+      for (let dy = 0; dy < 16; dy++) {
+        for (let dx = 0; dx < 520; dx += 26) {
+          for (let px = 0; px < 16; px++) gray[(y + dy) * W + 108 + dx + px] = 40;
+        }
+      }
+    }
+    base += 4 * 30 + 120;
+  }
+  const r = analyze({ gray, width: W, height: H }, {});
+  assert.equal(r.regions.length, 3, `应切成 3 段，实际 ${r.regions.length}`);
+});
+
 // 碎缝不该把两档阈值压穿：3 道题、每题 3 行、行距 60、题距 360 的合成页。
 // 带内会出现 2~3px 的假缝，若它们参与"最大跳跃"搜索，阈值会掉到 ~16px 而按行切成 9 段。
 test('碎缝不参与跳跃判定：三题九行应切成 3 段', () => {

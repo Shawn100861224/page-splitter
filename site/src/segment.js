@@ -192,6 +192,23 @@ export function analyze(img, options = {}) {
     rowInk[y] = c;
   }
 
+  // 2.5) 横线笔记本的格线：整行几乎贯穿页宽的那一行不是字，是印刷横线。
+  // 不清掉的话它会让每一行都成为"墨迹带"，结果就是按行切碎（实测深色格线：3 组题切成 19 段）。
+  // 只清零行剖面，不动掩膜——横线上压着的手写笔画本来也只有 1~2 行像素受影响。
+  const ruledThr = sw * 0.75;
+  let ruledRows = 0;
+  let runY = [];
+  for (let y = 0; y <= H; y++) {
+    const hit = y < H && rowInk[y] >= ruledThr;
+    if (hit) { runY.push(y); continue; }
+    // 只认"细"的高覆盖行组：格线一般 1~6px 厚。厚块是涂黑/大面积阴影，是真内容，别动。
+    if (runY.length >= 1 && runY.length <= 6) {
+      for (const yy of runY) rowInk[yy] = 0;
+      ruledRows += runY.length;
+    }
+    runY = [];
+  }
+
   // 3) 平滑 + 行阈值
   const k = Math.max(3, (Math.round(H * p.smoothRatio) | 1));
   const sm = smoothProfile(rowInk, k);
