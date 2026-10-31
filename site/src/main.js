@@ -299,7 +299,7 @@ function renderList() {
 
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = '下载';
+    btn.textContent = isMobile() && canShareFiles() ? '存到相册' : '下载';
     btn.addEventListener('click', () => exportOne(i, [y0, y1], btn));
 
     li.append(thumb, meta, btn);
@@ -343,17 +343,39 @@ function download(blob, name) {
 }
 
 async function exportOne(index, yRange, btn) {
+  const name = `第${String(index + 1).padStart(2, '0')}段.jpg`;
+  const label = btn.textContent;
   btn.disabled = true;
   btn.textContent = '…';
+
+  // 手机上单段也走系统分享：这样点哪一段就存哪一段，和绿色按钮同一条路（能进相册）。
+  // 必须用预编码好的 File 并且不 await 任何东西，iOS 才认这次点击。
+  const single = share.files[index];
+  // single 来自预编码缓存；面板重建时 scheduleShareFiles 会先清空它，天然保证不存旧图
+  if (isMobile() && canShareFiles() && single) {
+    try {
+      await navigator.share({ files: [single], title: name });
+      setStatus(`已交给系统：在面板里选「保存」即可存进相册（${name}）`);
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      console.warn('单段分享失败，改用下载', err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label;
+    }
+  }
+
   try {
     const blob = await regionToBlob(yRange);
-    download(blob, `第${String(index + 1).padStart(2, '0')}段.jpg`);
+    download(blob, name);
+    if (isMobile()) setStatus(`已下载 ${name}：在相册的「下载」里能找到`);
   } catch (err) {
     console.error(err);
     setStatus(`导出失败：${err.message || err}`, 'warn');
   } finally {
     btn.disabled = false;
-    btn.textContent = '下载';
+    btn.textContent = label;
   }
 }
 
@@ -390,6 +412,11 @@ async function exportZip() {
  * 分享必须在用户手势里同步调用，所以图片提前在后台缓存好，点击时直接交出 File[]。
  */
 const share = { files: [], building: false, seq: 0, timer: 0 };
+
+/** 手机/平板：用系统分享面板才能进相册，桌面浏览器落"下载"文件夹 */
+function isMobile() {
+  return matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
 
 function canShareFiles() {
   try {
