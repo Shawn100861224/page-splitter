@@ -486,3 +486,16 @@ dialog.gallery::backdrop { background: rgba(0, 0, 0, .6); }
 .ua-tip p { margin: 6px 0 4px; color: var(--fg-dim); }
 .ua-tip ol { margin: 0; padding-left: 20px; color: var(--fg-dim); }
 .ua-tip li { margin: 2px 0; }
+
+/* 微信/QQ 内置浏览器顶部提示条：一进页面就看见，别让人滑到底才知道存不了相册 */
+.inapp-bar {
+  margin: 0 0 12px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: #fff6de;
+  border: 1px solid #e2c069;
+  color: #5f4700;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.inapp-bar b { color: #3f3000; }

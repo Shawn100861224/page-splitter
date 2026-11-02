@@ -17,6 +17,16 @@ const UA = navigator.userAgent;
 const inAppBrowser = /MicroMessenger|QQ\/|QQBrowser|Weibo/i.test(UA)
   || new URLSearchParams(location.search).has('inapp');   // ?inapp=1 用来在本机复现提示
 
+// 在微信/QQ 里打开时，页首先给一条提示——这一条决定大多数人能不能存进相册。
+// 别指望他滑到对话区下面的黄色说明，那已经太晚了：他会在"文件"里找不到图。
+{
+  const bar = document.getElementById('inapp-bar');
+  if (bar && inAppBrowser) {
+    bar.hidden = false;
+    bar.innerHTML = '你现在是在微信 / QQ 里打开，<b>这里存不进相册</b>：点右上角 <b>⋯</b> → <b>在浏览器打开</b>，再点「保存到相册」。';
+  }
+}
+
 // 首页「适合 / 不适合」：宽屏展开，手机上收起（手机上首屏要留给选图和按钮）
 {
   const fit = document.getElementById('fit-details');
