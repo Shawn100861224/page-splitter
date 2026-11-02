@@ -191,7 +191,13 @@ function syncStatus() {
   const risky = (S.result.risky || []).length;
   const auto = S.result.regions.length;
   const extra = n === auto ? '' : `（手工调整：自动 ${auto} 段）`;
-  setStatus(`${n} 段${extra}` + (risky ? ` · ${risky} 处间距接近阈值，建议核对` : ''), risky ? 'warn' : '');
+  // 自动一段都没切出来：多半是空白页/纯色截图/拍糊了。
+  // 这时兜底显示整页，别让状态栏说成"手工调整：自动 0 段"——用户没动过手，看了一脸问号。
+  if (auto === 0) {
+    setStatus('没找到文字：整页空白、纯色或拍糊了。换一张，或在预览上点空白处自己加线', 'warn');
+  } else {
+    setStatus(`${n} 段${extra}` + (risky ? ` · ${risky} 处间距接近阈值，建议核对` : ''), risky ? 'warn' : '');
+  }
   el.btnZip.disabled = !n;            // 有分段才允许导出（此前只在读图时禁用、从未启用，是真 bug）
   scheduleShareFiles();   // 段变了就把相册用的图片重新编码（防抖，拖完才跑）
 }
