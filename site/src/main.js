@@ -2,7 +2,7 @@
  * main.js — 页面交互：选图 → 自动分区 → 手改分界 → 导出 ZIP
  * 全部在本机完成，不发任何网络请求。
  */
-import { analyze, DEFAULTS } from './segment.js?v=18';
+import { analyze, DEFAULTS } from './segment.js?v=19';
 import {
   loadBitmap, downscale, canvasToGray, cropRegion, canvasToJpegBlob, bitmapSize, rotate90,
 } from './imageio.js';
@@ -455,10 +455,18 @@ function isMobile() {
   return matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 }
 
-function canShareFiles() {
+/**
+ * 能不能把这些文件交给系统分享面板。
+ * 注意必须按「实际张数」探测：很多安卓浏览器支持分享 1 张、不支持一次分享多张，
+ * 只用一个文件探测会误判成支持，真发的时候系统只处理第一张（用户看到的「全部保存」
+ * 变成一张一张选，就是这么来的）。
+ */
+function canShareFiles(n = 1) {
   try {
-    const probe = new File([new Uint8Array([0])], 'p.jpg', { type: 'image/jpeg' });
-    return !!(navigator.canShare && navigator.canShare({ files: [probe] }));
+    if (!navigator.canShare) return false;
+    const mk = () => new File([new Uint8Array([0])], 'p.jpg', { type: 'image/jpeg' });
+    const files = n > 1 ? [mk(), mk()] : [mk()];
+    return !!navigator.canShare({ files });
   } catch (e) {
     return false;
   }
@@ -513,9 +521,12 @@ async function saveToGallery() {
     setStatus(share.building ? '还在准备图片，稍等一秒再点' : '没有可保存的分段', 'warn');
     return;
   }
-  if (!canShareFiles()) {           // 桌面 Chrome / 微信内置浏览器等：走长按保存
+  const n = share.files.length;
+  if (!canShareFiles(n)) {          // 系统面板吃不下这么多张（很多安卓浏览器只支持单张）
     openGalleryFallback();
-    setStatus('长按任意一张图片即可保存（电脑上点「下载」）');
+    setStatus(canShareFiles(1)
+      ? `这个浏览器不能一次把 ${n} 张交给系统相册，只能逐张存：长按图片，或点每张下面的「存到相册」`
+      : '长按任意一张图片即可保存（电脑上点「下载」）', 'warn');
     return;
   }
   try {

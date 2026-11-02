@@ -499,3 +499,10 @@ dialog.gallery::backdrop { background: rgba(0, 0, 0, .6); }
   line-height: 1.55;
 }
 .inapp-bar b { color: #3f3000; }
+
+/* 手机上别让列表自己滚：外层页面和内层列表同时能滚，手指滑的时候会打架，
+   而且列表高度固定 72vh，底部第 6 段直接被裁掉（用户实测滑到底只看到 5 段半）。
+   手机改成整页滚动，一次滑到底就能看到全部段。 */
+@media (max-width: 860px) {
+  .list { max-height: none; overflow: visible; }
+}
