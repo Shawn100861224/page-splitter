@@ -140,9 +140,24 @@ function contentBounds() {
   return [b[0][0], b[b.length - 1][1]];
 }
 
+/**
+ * 分界线能放的范围：从内容顶到「整页底部」，不是到最后一个墨迹带。
+ * 卡在墨迹带底部时，想把最后一段往下扩一点（多留空白）会拖不动，
+ * 用户只会觉得红线坏了——这条限制在实操里弊大于利。
+ */
+function dividerBounds() {
+  const [top] = contentBounds();
+  const hi = Math.max(top + 8, S.analysis.height - 4);
+  return [Math.min(top + 4, hi - 4), hi];
+}
+
 function regions() {
-  const [top, bottom] = contentBounds();
-  const ys = [top, ...S.dividers.filter((y) => y > top && y < bottom).sort((a, b) => a - b), bottom];
+  const [top, bottom0] = contentBounds();
+  const H = S.analysis.height;
+  const ds = S.dividers.filter((y) => y > top && y < H - 2).sort((a, b) => a - b);
+  // 最后一条线放在最后一个墨迹带下方时，末段底就取这条线——否则拖到底也白拖（被 filter 掉）。
+  const bottom = ds.length ? Math.max(bottom0, ds[ds.length - 1]) : bottom0;
+  const ys = [top, ...ds.filter((y) => y < bottom), bottom];
   const out = [];
   for (let i = 0; i < ys.length - 1; i++) {
     if (ys[i + 1] - ys[i] >= 4) out.push([ys[i], ys[i + 1]]);
@@ -253,8 +268,8 @@ function renderOverlay() {
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         e.preventDefault();
         snapshot();
-        const [top, bottom] = contentBounds();
-        S.dividers[i] = clamp(y + (e.key === 'ArrowUp' ? -step : step), top + 4, bottom - 4);
+        const [lo, hi] = dividerBounds();
+        S.dividers[i] = clamp(y + (e.key === 'ArrowUp' ? -step : step), lo, hi);
         render();
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
@@ -291,8 +306,8 @@ function makeDraggable(line, index) {
     if (!dragging) return;
     const rect = el.overlay.getBoundingClientRect();
     const y = ((e.clientY - rect.top) / rect.height) * S.analysis.height;
-    const [top, bottom] = contentBounds();
-    const next = clamp(Math.round(y), top + 4, bottom - 4);
+    const [lo, hi] = dividerBounds();
+    const next = clamp(Math.round(y), lo, hi);
     if (Math.abs(next - S.dividers[index]) >= 1) {
       moved = true;
       S.dividers[index] = next;
@@ -687,8 +702,8 @@ el.overlay.addEventListener('click', (e) => {
   if (e.target.closest('.line')) return;
   const rect = el.overlay.getBoundingClientRect();
   const y = Math.round(((e.clientY - rect.top) / rect.height) * S.analysis.height);
-  const [top, bottom] = contentBounds();
-  if (y <= top + 6 || y >= bottom - 6) return;
+  const [lo, hi] = dividerBounds();
+  if (y <= lo + 2 || y >= hi - 2) return;
   if (S.dividers.some((d) => Math.abs(d - y) < 6)) return;
   snapshot();
   S.dividers.push(y);
