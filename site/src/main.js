@@ -34,7 +34,7 @@ const inAppBrowser = /MicroMessenger|QQ\/|QQBrowser|Weibo/i.test(UA)
 }
 
 const el = {
-  drop: $('drop'), file: $('file'), btnSample: $('btn-sample'),
+  drop: $('drop'), file: $('file'), btnSample: $('btn-sample'), sampleLine: document.querySelector('.sample-line'),
   editor: $('editor'),
   gap: $('gap'), pad: $('pad'), count: $('count'), outGap: $('out-gap'), outPad: $('out-pad'),
   btnBack: $('btn-back'), btnAuto: $('btn-auto'), btnAdd: $('btn-add'), btnZip: $('btn-zip'),
@@ -94,6 +94,7 @@ async function openFile(file) {
       S.gray = canvasToGray(S.analysis.canvas);
     }
     el.drop.hidden = true;
+    if (el.sampleLine) el.sampleLine.hidden = true;
     el.editor.hidden = false;
     drawPreview();
     // 分析是同步的：先让浏览器把这一帧画出来，再算，否则用户看到的是「点了没反应」
@@ -681,6 +682,7 @@ function backToDrop() {
   document.documentElement.dataset.stage = 'drop';
   el.editor.hidden = true;
   el.drop.hidden = false;
+  if (el.sampleLine) el.sampleLine.hidden = false;
   el.file.value = '';
   S.bmp = null;
   S.base = null;
