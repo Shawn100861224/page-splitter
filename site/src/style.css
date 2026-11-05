@@ -506,3 +506,22 @@ dialog.gallery::backdrop { background: rgba(0, 0, 0, .6); }
 @media (max-width: 860px) {
   .list { max-height: none; overflow: visible; }
 }
+
+/* 示例图入口：手边没照片的人也要有一条能走的路 */
+.sample-line {
+  margin: 12px 0 0;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--fg-dim);
+}
+.link-btn {
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.link-btn:disabled { opacity: .6; cursor: default; text-decoration: none; }

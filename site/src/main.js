@@ -34,7 +34,7 @@ const inAppBrowser = /MicroMessenger|QQ\/|QQBrowser|Weibo/i.test(UA)
 }
 
 const el = {
-  drop: $('drop'), file: $('file'),
+  drop: $('drop'), file: $('file'), btnSample: $('btn-sample'),
   editor: $('editor'),
   gap: $('gap'), pad: $('pad'), count: $('count'), outGap: $('out-gap'), outPad: $('out-pad'),
   btnBack: $('btn-back'), btnAuto: $('btn-auto'), btnAdd: $('btn-add'), btnZip: $('btn-zip'),
@@ -597,6 +597,26 @@ function openGalleryFallback(list) {
 
 /* ---------------- 事件绑定 ---------------- */
 el.drop.addEventListener('click', () => el.file.click());
+
+/* 示例图：第一次来的人手上往往没有作业照片，不给他一条能走的路，页面就到此为止 */
+if (el.btnSample) {
+  const idle = el.btnSample.textContent;
+  el.btnSample.addEventListener('click', async () => {
+    el.btnSample.disabled = true;
+    el.btnSample.textContent = '正在载入示例…';
+    try {
+      const r = await fetch('sample-work.jpg');
+      if (!r.ok) throw new Error(String(r.status));
+      const b = await r.blob();
+      await openFile(new File([b], '示例习题.jpg', { type: 'image/jpeg' }));
+    } catch (err) {
+      setStatus('示例图没载入成功，直接选你自己的照片就行', 'warn');
+    } finally {
+      el.btnSample.disabled = false;
+      el.btnSample.textContent = idle;
+    }
+  });
+}
 el.drop.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' || e.key === ' ') {
     e.preventDefault();

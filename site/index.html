@@ -7,7 +7,7 @@
 <meta name="description" content="上传一张照片，自动识别文字区块并按题目切开，可手动调整分界线，一键导出 ZIP。图片不上传，全部在本机浏览器里完成。">
 <meta name="theme-color" content="#0f1115">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✂️</text></svg>">
-<link rel="stylesheet" href="./src/style.css?v=16">
+<link rel="stylesheet" href="./src/style.css?v=17">
 </head>
 <body>
 <header class="top">
@@ -31,6 +31,11 @@
     <p class="drop-hint">支持 JPG / PNG / WebP 相机原图 · 也可以直接 Ctrl+V 粘贴截图</p>
     <input id="file" type="file" accept="image/*" hidden>
   </section>
+
+  <!-- 手上没照片也能先看效果：否则第一次来的人只能关掉页面 -->
+  <p class="sample-line">
+    手边没有作业照片？<button type="button" id="btn-sample" class="link-btn">用一张示例图试试</button>
+  </p>
 
   <!-- 1.5 小介绍（不进编辑器，让人先知道这是干什么的） -->
   <section class="intro" aria-label="这个工具能做什么">
@@ -150,6 +155,6 @@
   </p>
 </footer>
 
-<script type="module" src="./src/main.js?v=40"></script>
+<script type="module" src="./src/main.js?v=41"></script>
 </body>
 </html>
