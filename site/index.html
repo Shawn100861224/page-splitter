@@ -7,7 +7,7 @@
 <meta name="description" content="上传一张照片，自动识别文字区块并按题目切开，可手动调整分界线，一键导出 ZIP。图片不上传，全部在本机浏览器里完成。">
 <meta name="theme-color" content="#0f1115">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✂️</text></svg>">
-<link rel="stylesheet" href="./src/style.css?v=19">
+<link rel="stylesheet" href="./src/style.css?v=20">
 </head>
 <body>
 <header class="top">
@@ -44,9 +44,10 @@
   </p>
 
   <!-- 1.5 小介绍（不进编辑器，让人先知道这是干什么的） -->
-  <section class="intro" aria-label="这个工具能做什么">
-    <h2>它做什么</h2>
-    <p>手机拍下一页习题，这里按题目切成几张单图：先自动切一遍，切不准的地方你拖一下红线，最后点「存到相册」进图库。</p>
+  <section class="intro" aria-label="为什么做这个工具">
+    <h2>为什么有这个东西</h2>
+    <p>拍作业的时候总遇到一个麻烦：一页纸上好几道题，想单独把其中一道发给别人，只能在相册里一点点裁，裁半天，边上还是歪的。</p>
+    <p>所以做了这个。拍一张丢进去，它顺着题目和题目之间的空白切开；切不准的地方，拖一下红线就行。</p>
     <ol class="steps">
       <li><b>选图</b><span>点上面的方框，从相册选一张照片（也可以直接拍）</span></li>
       <li><b>调分界</b><span>红线可拖、点空白加一条、点 × 删一条，切错了能撤销</span></li>
