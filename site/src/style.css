@@ -525,3 +525,13 @@ dialog.gallery::backdrop { background: rgba(0, 0, 0, .6); }
   cursor: pointer;
 }
 .link-btn:disabled { opacity: .6; cursor: default; text-decoration: none; }
+
+/* 上传框的视觉锚点：原来是一整块白，看着像说明区不像能点的地方 */
+.drop-icon {
+  display: block;
+  width: 34px;
+  height: 34px;
+  margin: 0 auto 12px;
+  color: var(--accent);
+  opacity: .9;
+}

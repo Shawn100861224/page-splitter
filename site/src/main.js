@@ -78,8 +78,10 @@ async function openFile(file) {
     setStatus('这个文件不是图片，换一张试试', 'warn');
     return;
   }
-  setStatus('');
   el.btnZip.disabled = true;
+  // 48MP 相机原图能到 12MB 以上，解码要几秒；先说明一下，别让人以为点坏了
+  const mb = file.size / (1024 * 1024);
+  setStatus(mb >= 12 ? `这张 ${mb.toFixed(0)}MB，读进来要几秒，别急着再点一次…` : '');
   try {
     S.bmp = await loadBitmap(file);
     // 横着拍的照片（纸转了 90°）先摆正：分析只认"行"，方向反了就只会切出 1 段。
@@ -346,7 +348,8 @@ function renderList() {
     b.textContent = `第 ${String(i + 1).padStart(2, '0')} 段`;
     const span = document.createElement('span');
     const hPx = Math.round((y1 - y0) / S.analysis.scale);
-    span.textContent = `${hPx}px 高 · y ${Math.round(y0 / S.analysis.scale)}–${Math.round(y1 / S.analysis.scale)}`;
+    const wPx = S.bmp ? Math.round(S.bmp.width) : 0;
+    span.textContent = `${wPx} × ${hPx} px`;
     meta.append(b, span);
 
     const btn = document.createElement('button');
