@@ -76,6 +76,10 @@
     <p class="intro-foot">全程在你的浏览器里算：不上传、无账号、无统计，断网也能用。</p>
   </section>
 
+  <!-- 状态条放在编辑器外面：选图页的「不是图片」「读图失败」「图太大」也要看得见。
+       原来它在 #editor 内部，编辑器没打开时写进去的文案全是白写。 -->
+  <p id="status" class="status" hidden></p>
+
   <!-- 2. 编辑器 -->
   <section id="editor" class="editor" hidden>
     <div class="toolbar">
@@ -102,7 +106,6 @@
       <button id="btn-zip" class="ghost" type="button">导出 ZIP</button>
     </div>
 
-    <p id="status" class="status" hidden></p>
     <div id="ua-tip" class="ua-tip" hidden>
       <b>你是在微信/QQ 内置浏览器里打开的</b>
       <p>这里没有「存到相册」的接口，点任何下载都只会进「文件」。存相册有两条路：</p>
@@ -161,6 +164,6 @@
   </p>
 </footer>
 
-<script type="module" src="./src/main.js?v=43"></script>
+<script type="module" src="./src/main.js?v=44"></script>
 </body>
 </html>

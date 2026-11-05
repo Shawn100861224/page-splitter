@@ -14,6 +14,7 @@ const $ = (id) => document.getElementById(id);
 
 /* 内置浏览器（微信/QQ）没有 Web Share、也写不进相册：单独给提示，别让用户以为能一键存图 */
 const UA = navigator.userAgent;
+const FORCE_MOBILE = new URLSearchParams(location.search).has('mobile');
 const inAppBrowser = /MicroMessenger|QQ\/|QQBrowser|Weibo/i.test(UA)
   || new URLSearchParams(location.search).has('inapp');   // ?inapp=1 用来在本机复现提示
 
@@ -108,7 +109,10 @@ async function openFile(file) {
     document.documentElement.dataset.stage = 'editor';
   } catch (err) {
     console.error(err);
-    setStatus(`读图失败：${err.message || err}`, 'warn');
+    // 原来直接把浏览器抛的英文内部错误拼进界面；状态条现在选图页也看得见了，更得说人话
+    setStatus('这张图读不出来：可能不是图片，也可能文件损坏了。换一张试试。', 'warn');
+    if (el.sampleLine) el.sampleLine.hidden = false;   // 失败要回到干净的空态，示例入口也该回来
+    el.file.value = '';                                // 不清空的话，同一个文件重选不会再触发 change
     el.drop.hidden = false;
     el.editor.hidden = true;
   }
@@ -348,7 +352,9 @@ function renderList() {
     b.textContent = `第 ${String(i + 1).padStart(2, '0')} 段`;
     const span = document.createElement('span');
     const hPx = Math.round((y1 - y0) / S.analysis.scale);
-    const wPx = S.bmp ? Math.round(S.bmp.width) : 0;
+    // 宽必须跟导出一致：横拍时 S.base 是摆正后的图，S.bmp 还横着，用错会宽高互换
+    const srcW = S.base || S.bmp;
+    const wPx = srcW ? Math.round(srcW.width) : 0;
     span.textContent = `${wPx} × ${hPx} px`;
     meta.append(b, span);
 
@@ -438,12 +444,19 @@ async function exportOne(index, yRange, btn) {
   }
 }
 
-async function exportZip() {
+let zipBusy = false;
+
+async function exportZip(ev) {
+  if (zipBusy) return;
   const rs = regions();
   if (!rs.length) return;
+  zipBusy = true;
+  // 工具栏和弹窗里各有一个入口，两处都要锁：连点会并发打两遍包，下两个同名文件
+  const trigger = ev && ev.currentTarget && ev.currentTarget.tagName === 'BUTTON' ? ev.currentTarget : el.btnZip;
+  const label = trigger.textContent;
   el.btnZip.disabled = true;
-  const label = el.btnZip.textContent;
-  el.btnZip.textContent = '打包中…';
+  if (el.dlgZip) el.dlgZip.disabled = true;
+  trigger.textContent = '打包中…';
   try {
     const files = [];
     for (let i = 0; i < rs.length; i++) {
@@ -459,8 +472,10 @@ async function exportZip() {
     console.error(err);
     setStatus(`导出失败：${err.message || err}`, 'warn');
   } finally {
+    zipBusy = false;
     el.btnZip.disabled = false;
-    el.btnZip.textContent = label;
+    if (el.dlgZip) el.dlgZip.disabled = false;
+    trigger.textContent = label;
   }
 }
 
@@ -470,10 +485,11 @@ async function exportZip() {
  * 进相册只有两条路：Web Share（系统分享面板 →「存储 N 项」）或长按图片保存。
  * 分享必须在用户手势里同步调用，所以图片提前在后台缓存好，点击时直接交出 File[]。
  */
-const share = { files: [], building: false, seq: 0, timer: 0 };
+const share = { files: [], building: false, seq: 0, timer: 0, done: 0 };
 
 /** 手机/平板：用系统分享面板才能进相册，桌面浏览器落"下载"文件夹 */
 function isMobile() {
+  if (FORCE_MOBILE) return true;   // ?mobile=1：在电脑上验手机端分支
   return matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 }
 
@@ -497,10 +513,13 @@ function canShareFiles(n = 1) {
 function updateSaveBtn() {
   if (!el.btnSave) return;
   const n = regions().length;
-  el.btnSave.hidden = false;      // 按钮常显：不支持系统分享时直接开长按面板
+  const touch = isMobile();
+  // 电脑上没有相册可存，主按钮让位给真正能用的「导出 ZIP」，别把人引到长按面板
+  el.btnSave.hidden = !touch;
+  el.btnZip.classList.toggle('primary', !touch);
   el.btnSave.disabled = !n;
-  if (share.building && !share.files.length && n) {
-    el.btnSave.textContent = `准备中 ${share.files.length}/${n}…`;
+  if (share.building && n && share.done < n) {
+    el.btnSave.textContent = `准备中 ${share.done}/${n}…`;
   } else {
     el.btnSave.textContent = canShareFiles() ? '保存到相册' : '保存图片';
   }
@@ -521,18 +540,22 @@ async function buildShareFiles() {
     } catch (err) {
       console.warn('预编码失败', err);
     }
-    if (seq === share.seq) { share.files = out.slice(); updateSaveBtn(); }
+    if (seq === share.seq) { share.files = out.slice(); share.done = out.length; updateSaveBtn(); }
   }
   if (seq !== share.seq) return;
   share.files = out;
+  share.done = out.length;
   share.building = false;
   updateSaveBtn();
 }
 
 function scheduleShareFiles(delay = 250) {
   clearTimeout(share.timer);
+  // 电脑上没有系统分享面板，File[] 根本用不到；别在后台白编码一遍全分辨率图
+  if (!isMobile()) { share.files = []; share.building = false; share.done = 0; updateSaveBtn(); return; }
   share.building = true;
   share.files = [];
+  share.done = 0;
   updateSaveBtn();
   share.timer = setTimeout(buildShareFiles, delay);
 }
