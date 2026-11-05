@@ -161,13 +161,28 @@ function dividerBounds() {
   return [Math.min(top + 4, hi - 4), hi];
 }
 
-function regions() {
+/**
+ * 分界线分两种角色：内容上方的才是"切分线"，落在最后一个墨迹带下方的只当"末段底"。
+ * v39 放开拖到页底之后，一条线既当分界线又当末段底，于是出现「红线还在画、段数却少一段」
+ * ——单线拖到内容下方时 2 段会静默变成 1 段。这里把两种角色分开：切分线数量 + 1 恒等于段数。
+ */
+function splitDividers() {
   const [top, bottom0] = contentBounds();
   const H = S.analysis.height;
   const ds = S.dividers.filter((y) => y > top && y < H - 2).sort((a, b) => a - b);
-  // 最后一条线放在最后一个墨迹带下方时，末段底就取这条线——否则拖到底也白拖（被 filter 掉）。
-  const bottom = ds.length ? Math.max(bottom0, ds[ds.length - 1]) : bottom0;
-  const ys = [top, ...ds.filter((y) => y < bottom), bottom];
+  const cuts = [];
+  let end = bottom0;
+  for (const y of ds) {
+    if (y > bottom0 + 2) end = Math.max(end, y);   // 内容下方：只把末段往下延长
+    else cuts.push(y);
+  }
+  return { cuts, end, hasEnd: end > bottom0 + 2 };
+}
+
+function regions() {
+  const [top] = contentBounds();
+  const { cuts, end } = splitDividers();
+  const ys = [top, ...cuts, end];
   const out = [];
   for (let i = 0; i < ys.length - 1; i++) {
     if (ys[i + 1] - ys[i] >= 4) out.push([ys[i], ys[i + 1]]);
@@ -226,12 +241,14 @@ function syncStatus() {
   const risky = (S.result.risky || []).length;
   const auto = S.result.regions.length;
   const extra = n === auto ? '' : `（手工调整：自动 ${auto} 段）`;
+  const { hasEnd } = splitDividers();
+  const endTip = hasEnd ? ' · 灰点线是页底，不参与切分' : '';
   // 自动一段都没切出来：多半是空白页/纯色截图/拍糊了。
   // 这时兜底显示整页，别让状态栏说成"手工调整：自动 0 段"——用户没动过手，看了一脸问号。
   if (auto === 0) {
     setStatus('没找到文字：整页空白、纯色或拍糊了。换一张，或在预览上点空白处自己加线', 'warn');
   } else {
-    setStatus(`${n} 段${extra}` + (risky ? ` · ${risky} 处间距接近阈值，建议核对` : ''), risky ? 'warn' : '');
+    setStatus(`${n} 段${extra}${endTip}` + (risky ? ` · ${risky} 处间距接近阈值，建议核对` : ''), risky ? 'warn' : '');
   }
   el.btnZip.disabled = !n;            // 有分段才允许导出（此前只在读图时禁用、从未启用，是真 bug）
   scheduleShareFiles();   // 段变了就把相册用的图片重新编码（防抖，拖完才跑）
@@ -251,13 +268,18 @@ function renderOverlay() {
   }
 
   el.lines.replaceChildren();
+  const [, contentBottom] = contentBounds();
   S.dividers.forEach((y, i) => {
     const line = document.createElement('div');
-    line.className = 'line';
+    // 内容下方这条不切分，只是把末段延到页底；画成灰点线，别让人以为它会切开
+    const isEnd = y > contentBottom + 2;
+    line.className = isEnd ? 'line end' : 'line';
     line.style.top = pct(y);
     line.tabIndex = 0;
     line.setAttribute('role', 'slider');
-    line.setAttribute('aria-label', `分界线 ${i + 1}，上下方向键微调，Delete 删除`);
+    line.setAttribute('aria-label', isEnd
+      ? '页底边界（不参与切分），上下方向键微调，Delete 删除'
+      : `分界线 ${i + 1}，上下方向键微调，Delete 删除`);
     line.dataset.y = String(y);
 
     const kill = document.createElement('button');
@@ -281,6 +303,7 @@ function renderOverlay() {
         const [lo, hi] = dividerBounds();
         S.dividers[i] = clamp(y + (e.key === 'ArrowUp' ? -step : step), lo, hi);
         render();
+        syncStatus();   // 键盘微调也要更新段数与「页底」提示，别只刷列表
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         snapshot();

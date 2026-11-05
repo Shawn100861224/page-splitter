@@ -231,6 +231,24 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   touch-action: none;
 }
 
+/* 内容下方那条线只延长末段、不参与切分：换个形状和颜色，别跟真正的分界线混在一起 */
+.line.end {
+  border-top-style: dotted;
+  border-top-color: var(--muted-foreground);   /* 淡了一档在浅色页面上几乎看不见，用实色 */
+}
+
+.line.end::before {
+  content: "页底";
+  position: absolute;
+  left: 6px; top: -19px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+}
+
 .line::after {
   content: "";
   position: absolute;
