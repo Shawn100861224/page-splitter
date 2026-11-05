@@ -96,6 +96,9 @@ async function openFile(file) {
     el.drop.hidden = true;
     el.editor.hidden = false;
     drawPreview();
+    // 分析是同步的：先让浏览器把这一帧画出来，再算，否则用户看到的是「点了没反应」
+    setStatus('分析中…');
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     runAnalyze();
     if (el.uaTip) el.uaTip.hidden = !inAppBrowser;
     try { window.history.pushState({ stage: 'editor' }, ''); } catch (_) { /* 老浏览器忽略 */ }
@@ -673,9 +676,21 @@ el.btnBack.addEventListener('click', () => {
   else backToDrop();
 });
 
+/** 用户是否动过分界线（和自动结果不一致）。用于返回键确认，防止滑动误触丢掉手动调整。 */
+function editedSinceAuto() {
+  if (!S.result) return false;
+  const auto = S.result.regions.slice(1).map((r) => r[0]);
+  if (auto.length !== S.dividers.length) return true;
+  return S.dividers.some((y, i) => Math.abs(y - auto[i]) > 1);
+}
+
 /* 手机返回键：面板 → 关面板；编辑器 → 回选图页；选图页才真的离开网站 */
 window.addEventListener('popstate', (ev) => {
   const stage = (ev.state && ev.state.stage) || '';
+  if (stage !== 'editor' && editedSinceAuto()) {
+    try { history.pushState({ stage: 'editor' }, ''); } catch (_) { /* ignore */ }
+    if (!window.confirm('你手动调过分界线，返回会丢掉这些调整。\n确定要退出吗？')) return;
+  }
   document.documentElement.dataset.stage = stage || 'drop';
   if (el.dlgGallery && el.dlgGallery.open) {
     el.dlgGallery.close();
