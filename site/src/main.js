@@ -325,6 +325,11 @@ function makeDraggable(line, index) {
   let moved = false;
   let before = null;
 
+  // 微信的 X5 内核（还有部分安卓浏览器）对 pointer 事件的 touch-action 支持不完整，
+  // 只靠 CSS 的话手指按在红线上往下拖，页面会跟着一起滚。拖动期间直接在 document
+  // 上把 touchmove 掐掉，松手再放开——这是唯一在各家内核里都稳的办法。
+  const stopScroll = (ev) => { if (ev.cancelable) ev.preventDefault(); };
+
   line.addEventListener('pointerdown', (e) => {
     // 点在 × 上不要开始拖动：setPointerCapture 会把后续 click 重定向到 line，
     // 按钮的 click 永远收不到（手机上表现为"点叉没用"）。
@@ -332,8 +337,12 @@ function makeDraggable(line, index) {
     dragging = true;
     moved = false;
     before = S.dividers.slice();
-    line.setPointerCapture(e.pointerId);
-  });
+    // 合成事件或 pointercancel 之后再调会抛，别让它把后面的锁滚动也带崩
+    try { line.setPointerCapture(e.pointerId); } catch (_) { /* 拿不到捕获也能拖，只是手指移出线就断 */ }
+    document.addEventListener('touchmove', stopScroll, { passive: false });
+    // 拖动时把画布的手势也一并锁住，避免手指滑出红线后系统又接管滚动
+    el.overlay.style.touchAction = 'none';
+  }, { passive: false });
 
   line.addEventListener('pointermove', (e) => {
     if (!dragging) return;
@@ -350,6 +359,8 @@ function makeDraggable(line, index) {
 
   const end = () => {
     dragging = false;
+    document.removeEventListener('touchmove', stopScroll, { passive: false });
+    el.overlay.style.touchAction = '';
     if (moved && before) snapshot(before);
     if (moved) { render(); syncStatus(); }
   };

@@ -223,6 +223,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 .line {
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
   position: absolute;
   left: 0; right: 0;
   height: 0;
