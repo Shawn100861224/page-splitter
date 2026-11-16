@@ -77,7 +77,7 @@ document.addEventListener('touchmove', (e) => {
 // 捕获阶段先拦一道：手指一落在红线上（× 除外），就在祖先节点上把这次手势的滚动关掉，
 // 不等逐条线自己的监听器——滚动判定在 touchstart 就开始了，晚一步就让浏览器抢走。
 el.lines.addEventListener('touchstart', (e) => {
-  if (!e.target.closest('.line') || e.target.closest('.kill')) return;
+  if (!e.target.closest('.line') || e.target.closest('.kill, .step')) return;
   dragLock = true;
   lockY = window.scrollY || document.documentElement.scrollTop || 0;
   if (e.cancelable) e.preventDefault();
@@ -354,6 +354,28 @@ function renderOverlay() {
     });
 
 
+    // 手机自带浏览器会把竖向拖动当成「收起工具栏」吃掉，网页拦不住，
+    // 所以再给一条纯点按的路：线右端 ↑ ↓，点一下挪 2px，按下就生效，不经过手势。
+    const mkStep = (dir, label, delta) => {
+      const b = document.createElement('button');
+      b.className = `step ${dir}`;
+      b.type = 'button';
+      b.textContent = label;
+      b.title = delta < 0 ? '上移 2px' : '下移 2px';
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        snapshot();
+        const [lo, hi] = dividerBounds();
+        S.dividers[i] = clamp(S.dividers[i] + delta, lo, hi);
+        render();
+        syncStatus();
+        setStatus(delta < 0 ? '上移 2px' : '下移 2px');
+      });
+      return b;
+    };
+    line.appendChild(mkStep('up', '↑', -2));
+    line.appendChild(mkStep('down', '↓', 2));
+
     line.appendChild(kill);
     makeDraggable(line, i);
     el.lines.appendChild(line);
@@ -509,7 +531,7 @@ function makeDraggable(line, index) {
 
   // 光拦 touchmove 不够：滚动判定在 touchstart 就开始了，等 touchmove 再拦已经晚半拍。
   line.addEventListener('touchstart', (e) => {
-    if (e.target.closest('.kill')) return;   // × 按钮得能点
+    if (e.target.closest('.kill, .step')) return;   // × 按钮得能点
     if (e.cancelable) e.preventDefault();
     lockPage();          // 有些自带浏览器不发 pointer，光靠 pointerdown 锁不住
     touching = true;
@@ -531,7 +553,7 @@ function makeDraggable(line, index) {
     if (e.pointerType !== 'mouse') return;
     // 点在 × 上不要开始拖动：setPointerCapture 会把后续 click 重定向到 line，
     // 按钮的 click 永远收不到（手机上表现为"点叉没用"）。
-    if (e.target.closest('.kill')) return;
+    if (e.target.closest('.kill, .step')) return;
     dragging = true;
     moved = false;
     before = S.dividers.slice();

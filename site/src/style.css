@@ -278,6 +278,35 @@ body.dragging { overflow: hidden; }
   display: grid; place-items: center;
   cursor: pointer;
 }
+/* ↑ ↓ 微调按钮：自带浏览器里竖向拖动会被浏览器界面抢走，这两个按钮纯点按，绕开手势。
+   放在线右端、× 左边，线本身是 0 高度，所以上下各挂一个。 */
+.line .step {
+  position: absolute;
+  right: 44px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--fg);
+  font-size: 14px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  touch-action: manipulation;
+  z-index: 3;
+  opacity: .9;
+}
+.line .step.up { top: -36px; }
+.line .step.down { top: 6px; }
+
+@media (max-width: 860px) {
+  .line .step { width: 36px; height: 36px; right: 50px; font-size: 16px; }
+  .line .step.up { top: -40px; }
+  .line .step.down { top: 8px; }
+}
+
 
 /* 编辑器打开时，整页没有任何可滚空间：拖红线时浏览器想滚也没东西可滚。
    代价是编辑过程中页面不再整页滚动，改由 #editor 自己滚（只有它有内容溢出）。 */
