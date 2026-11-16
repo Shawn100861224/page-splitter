@@ -262,6 +262,37 @@ body.dragging { overflow: hidden; }
   height: 18px;
 }
 
+/* 选中态：线加粗，右侧露出 ↑ ↓（手机自带浏览器里拖会带着页面走，点按这条路更稳） */
+.line.sel { border-top-width: 3px; }
+
+.line .step {
+  position: absolute;
+  top: -15px;
+  width: 30px; height: 30px;
+  display: none;
+  touch-action: manipulation;
+  z-index: 2;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--fg);
+  font-size: 14px;
+  line-height: 1;
+  place-items: center;
+  cursor: pointer;
+}
+
+.line.sel .step { display: grid; }
+.line .step.up { right: 78px; }
+.line .step.down { right: 44px; }
+
+/* 手机上手指比鼠标粗，按钮放大到 38px，间距跟着让开 */
+@media (max-width: 860px) {
+  .line .step, .line .kill { width: 38px; height: 38px; top: -19px; }
+  .line .step.up { right: 92px; }
+  .line .step.down { right: 50px; }
+}
+
 .line .kill {
   position: absolute;
   right: 6px; top: -15px;

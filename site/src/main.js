@@ -54,6 +54,7 @@ const S = {
   gray: null,
   result: null,
   dividers: [],     // 内部分界线的 y（分析坐标系）
+  sel: null,        // 选中的分界线索引：手机上拖动会带页面，用它走「点两下」的路
   pad: Number(el.pad.value),
   count: 0,          // 用户填的"这页几道题"，0 = 自动
   gapRatio: Number(el.gap.value) / 100,
@@ -130,6 +131,7 @@ function runAnalyze() {
   const t0 = performance.now();
   S.result = analyze(S.gray, { gapRatio: S.gapRatio, count: S.count });
   S.dividers = S.result.regions.slice(1).map((r) => r[0]);
+  S.sel = null;      // 重算之后旧索引没意义
   history.length = 0;
   updateUndo();
   const ms = Math.round(performance.now() - t0);
@@ -224,6 +226,7 @@ function undo() {
   updateUndo();
   if (!prev) return;
   S.dividers = prev.slice();
+  S.sel = null;
   render();
   syncStatus();
 }
@@ -273,11 +276,12 @@ function renderOverlay() {
 
   el.lines.replaceChildren();
   const [, contentBottom] = contentBounds();
+  if (S.sel != null && S.sel >= S.dividers.length) S.sel = null;   // 删线后索引可能越界
   S.dividers.forEach((y, i) => {
     const line = document.createElement('div');
     // 内容下方这条不切分，只是把末段延到页底；画成灰点线，别让人以为它会切开
     const isEnd = y > contentBottom + 2;
-    line.className = isEnd ? 'line end' : 'line';
+    line.className = (isEnd ? 'line end' : 'line') + (S.sel === i ? ' sel' : '');
     line.style.top = pct(y);
     line.tabIndex = 0;
     line.setAttribute('role', 'slider');
@@ -295,6 +299,7 @@ function renderOverlay() {
       e.stopPropagation();
       snapshot();
       S.dividers.splice(i, 1);
+      S.sel = null;
       render();
       syncStatus();
     });
@@ -312,10 +317,32 @@ function renderOverlay() {
         e.preventDefault();
         snapshot();
         S.dividers.splice(i, 1);
+        S.sel = null;
         render();
         syncStatus();
       }
     });
+
+    // 选中后才出现的上下微调键：手机自带浏览器拖红线会带着页面走，点按更稳
+    const mkStep = (dir, label, delta) => {
+      const b = document.createElement('button');
+      b.className = `step ${dir}`;
+      b.type = 'button';
+      b.textContent = label;
+      b.title = delta < 0 ? '上移一点' : '下移一点';
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        snapshot();
+        const [lo, hi] = dividerBounds();
+        S.dividers[i] = clamp(S.dividers[i] + delta, lo, hi);
+        render();
+        syncStatus();
+        setStatus('已微调 · 点图上任意位置可以直接挪过去', 'warn');
+      });
+      return b;
+    };
+    line.appendChild(mkStep('up', '↑', -2));
+    line.appendChild(mkStep('down', '↓', 2));
 
     line.appendChild(kill);
     makeDraggable(line, i);
@@ -434,8 +461,18 @@ function makeDraggable(line, index) {
     el.overlay.style.touchAction = '';
     document.body.classList.remove('dragging');
     unlockPage();
-    if (moved && before) snapshot(before);
-    if (moved) { render(); syncStatus(); }
+    if (moved && before) {
+      snapshot(before);
+      render();
+      syncStatus();
+    } else if (!moved) {
+      // 没拖动就是点了一下：选中（或取消）这条线。手机自带浏览器里拖会带着页面走，
+      // 用「点一下选中 → 点图上位置挪过去」这条路，任何浏览器都一样稳。
+      S.sel = (S.sel === index) ? null : index;
+      renderOverlay();
+      if (S.sel != null) setStatus('已选中这条线 · 点图上任意位置把它挪过去，或用 ↑ ↓ 微调', 'warn');
+      else syncStatus();
+    }
   };
   line.addEventListener('pointerup', end);
   line.addEventListener('pointercancel', end);
@@ -874,6 +911,17 @@ el.overlay.addEventListener('click', (e) => {
   const y = Math.round(((e.clientY - rect.top) / rect.height) * S.analysis.height);
   const [lo, hi] = dividerBounds();
   if (y <= lo + 2 || y >= hi - 2) return;
+
+  // 选着一条线的时候，这一下是「把它挪到这里」，不是「再加一条」
+  if (S.sel != null && S.dividers[S.sel] != null) {
+    snapshot();
+    S.dividers[S.sel] = y;
+    S.sel = null;
+    render();
+    syncStatus();
+    return;
+  }
+
   if (S.dividers.some((d) => Math.abs(d - y) < 6)) return;
   snapshot();
   S.dividers.push(y);
