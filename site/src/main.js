@@ -51,10 +51,29 @@ const el = {
 // 有的安卓内核在 touchstart 那一刻就检查有没有 non-passive 的 touchmove 监听者，
 // 等到按下时才临时 addEventListener 已经晚了，页面照样跟着滚。
 let dragLock = false;
+let lockY = 0;          // 拖动期间页面应该停在的位置
+let dragScrolls = null; // [[容器, 按下时的 scrollTop], ...]
 document.addEventListener('touchmove', (e) => {
   if (!dragLock) return;
   if (e.cancelable) e.preventDefault();
+  // 有的自带内核（X5 一类）压根不认 preventDefault，那条路拦不住滚动。
+  // 那就每帧把滚动位置硬按回去：哪怕它滚了，下一帧就被拉回来，视觉上页面钉住不动。
+  if (Math.abs(window.scrollY - lockY) > 1) window.scrollTo(0, lockY);
+  if (Math.abs(document.documentElement.scrollTop - lockY) > 1) document.documentElement.scrollTop = lockY;
+  // 页面可能滚在某个内层容器里（有的浏览器把 body/根当普通容器滚），按下时记过的都按回去
+  if (dragScrolls) {
+    for (const [n, top] of dragScrolls) if (Math.abs(n.scrollTop - top) > 1) n.scrollTop = top;
+  }
 }, { passive: false });
+
+// 捕获阶段先拦一道：手指一落在红线上（× 除外），就在祖先节点上把这次手势的滚动关掉，
+// 不等逐条线自己的监听器——滚动判定在 touchstart 就开始了，晚一步就让浏览器抢走。
+el.lines.addEventListener('touchstart', (e) => {
+  if (!e.target.closest('.line') || e.target.closest('.kill')) return;
+  dragLock = true;
+  lockY = window.scrollY || document.documentElement.scrollTop || 0;
+  if (e.cancelable) e.preventDefault();
+}, { passive: false, capture: true });
 
 const S = {
   bmp: null,
@@ -350,6 +369,8 @@ function makeDraggable(line, index) {
   const DEBUG = /[?&]debug=1/.test(location.search);
   let locked = false;
   let lockedY = 0;
+  let vvX0 = 0, vvY0 = 0;      // 按住那一刻的视觉视口位置
+  let scrollTops = [];         // 按住那一刻各层滚动容器的位置
   const dbg = () => {
     if (!DEBUG) return;
     let box = document.getElementById('dbgbox');
@@ -362,7 +383,7 @@ function makeDraggable(line, index) {
       document.documentElement.appendChild(box);
     }
     const vv = window.visualViewport;
-    box.textContent = `v53 locked=${locked} pos=${document.body.style.position || 'static'}`
+    box.textContent = `b1333 locked=${locked} pos=${document.body.style.position || 'static'}`
       + ` top=${document.body.style.top || '-'}\nscrollY=${Math.round(window.scrollY)}`
       + ` htmlOver=${document.documentElement.style.overflow || '-'}`
       + ` bodyOver=${document.body.style.overflow || '-'}`
@@ -374,28 +395,62 @@ function makeDraggable(line, index) {
   // 不判 (pointer:coarse)——手机上这个媒体查询不一定准，判错整道锁就废了。
   // 同时锁 html：有的内核滚的是 documentElement，只锁 body 没用。
   // 幂等：touchstart 和 pointerdown 都会调，重复调用不能把 lockedY 记成 0。
+  // 双指缩放过的页面，拖的时候动的不是「文档滚动」而是「视觉视口」——
+  // window.scrollY 一直是 0，画面却在跑，preventDefault 也拦不住。
+  // 对策：给预览容器加一个反向位移，把它按回原处。
+  const followVV = () => {
+    if (!locked) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const dx = vv.offsetLeft - vvX0;
+    const dy = vv.offsetTop - vvY0;
+    el.stage.style.transform = (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5)
+      ? '' : `translate(${-dx}px, ${-dy}px)`;
+    dbg();
+  };
+
   const lockPage = () => {
     if (locked) return;
     locked = true;
     lockedY = window.scrollY || document.documentElement.scrollTop || 0;
+    // 不用 position:fixed 了：改布局本身会让画面顶一下，看着就像「跟着滚」。
+    // 改成「禁滚动 + 每帧按回去」，位置一点不动。
+    lockY = lockedY;
     const b = document.body.style;
-    b.position = 'fixed'; b.top = `-${lockedY}px`;
-    b.left = '0'; b.right = '0'; b.width = '100%';
-    // body 自己被当成滚动容器时，光固定住它没用——内容照样能在里面滑
-    b.overflow = 'hidden'; b.touchAction = 'none';
+    b.overflow = 'hidden'; b.touchAction = 'none'; b.overscrollBehavior = 'none';
     const h = document.documentElement.style;
     h.overflow = 'hidden'; h.overscrollBehavior = 'none'; h.touchAction = 'none';
+    document.body.classList.add('dragging');
+    // 视觉视口 + 各层滚动容器都记下来，拖动期间一直按回原位
+    const vv = window.visualViewport;
+    if (vv) {
+      vvX0 = vv.offsetLeft; vvY0 = vv.offsetTop;
+      vv.addEventListener('scroll', followVV);
+      vv.addEventListener('resize', followVV);
+    }
+    scrollTops = [];
+    for (let n = el.overlay; n; n = n.parentElement) {
+      if (n.scrollHeight > n.clientHeight + 2) scrollTops.push([n, n.scrollTop]);
+    }
+    dragScrolls = scrollTops;
     dbg();
   };
   const unlockPage = () => {
     if (!locked) return;
     locked = false;
     const b = document.body.style;
-    b.position = ''; b.top = ''; b.left = ''; b.right = ''; b.width = '';
-    b.overflow = ''; b.touchAction = '';
+    b.overflow = ''; b.touchAction = ''; b.overscrollBehavior = '';
     const h = document.documentElement.style;
     h.overflow = ''; h.overscrollBehavior = ''; h.touchAction = '';
-    window.scrollTo(0, lockedY);
+    document.body.classList.remove('dragging');
+    const vv = window.visualViewport;
+    if (vv) { vv.removeEventListener('scroll', followVV); vv.removeEventListener('resize', followVV); }
+    el.stage.style.transform = '';
+    for (const [n, top] of scrollTops) n.scrollTop = top;
+    scrollTops = [];
+    dragScrolls = null;
+    // 期间万一被浏览器挪过，松手时回到原来的位置
+    if (Math.abs(window.scrollY - lockedY) > 1) window.scrollTo(0, lockedY);
   };
 
   // —— 手指路径：touch 事件一定存在（pointer 不一定），拖动走这里 ——
