@@ -342,6 +342,26 @@ function makeDraggable(line, index) {
     if (e.cancelable) e.preventDefault();
   }, { passive: false });
 
+  // 触屏设备再上一道最狠的锁：拖动期间把 body 钉住（position:fixed + top 补偿）。
+  // Chrome 里前面三道就够了，但手机自带浏览器（荣耀/华为这类）在 touchstart 之后
+  // 会直接走原生滚动，preventDefault 拦不住；钉住是各种内核都吃的一套。
+  const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)
+    || /[?&]mobile=1/.test(location.search);   // 和 isMobile() 同一个调试开关
+  let lockedY = 0;
+  const lockPage = () => {
+    if (!coarse) return;
+    lockedY = window.scrollY || document.documentElement.scrollTop || 0;
+    const b = document.body.style;
+    b.position = 'fixed'; b.top = `-${lockedY}px`;
+    b.left = '0'; b.right = '0'; b.width = '100%';
+  };
+  const unlockPage = () => {
+    if (!coarse) return;
+    const b = document.body.style;
+    b.position = ''; b.top = ''; b.left = ''; b.right = ''; b.width = '';
+    window.scrollTo(0, lockedY);
+  };
+
   line.addEventListener('pointerdown', (e) => {
     // 点在 × 上不要开始拖动：setPointerCapture 会把后续 click 重定向到 line，
     // 按钮的 click 永远收不到（手机上表现为"点叉没用"）。
@@ -355,6 +375,7 @@ function makeDraggable(line, index) {
     // 拖动时把画布的手势也一并锁住，避免手指滑出红线后系统又接管滚动
     el.overlay.style.touchAction = 'none';
     document.body.classList.add('dragging');
+    lockPage();
   }, { passive: false });
 
   line.addEventListener('pointermove', (e) => {
@@ -375,6 +396,7 @@ function makeDraggable(line, index) {
     document.removeEventListener('touchmove', stopScroll, { passive: false });
     el.overlay.style.touchAction = '';
     document.body.classList.remove('dragging');
+    unlockPage();
     if (moved && before) snapshot(before);
     if (moved) { render(); syncStatus(); }
   };
