@@ -350,11 +350,13 @@ function makeDraggable(line, index) {
         + 'pointer-events:none;';
       document.documentElement.appendChild(box);
     }
-    box.textContent = `locked=${locked} pos=${document.body.style.position || 'static'}`
+    const vv = window.visualViewport;
+    box.textContent = `v53 locked=${locked} pos=${document.body.style.position || 'static'}`
       + ` top=${document.body.style.top || '-'}\nscrollY=${Math.round(window.scrollY)}`
       + ` htmlOver=${document.documentElement.style.overflow || '-'}`
       + ` bodyOver=${document.body.style.overflow || '-'}`
-      + ` coarse=${window.matchMedia('(pointer: coarse)').matches}`;
+      + `\nscale=${vv ? vv.scale.toFixed(2) : '?'} vvTop=${vv ? Math.round(vv.offsetTop) : '?'}`
+      + ` vvH=${vv ? Math.round(vv.height) : '?'}`;
   };
 
   // 最狠的一道锁：拖动期间把页面钉住（position:fixed + top 补偿）。
