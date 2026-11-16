@@ -221,6 +221,10 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 .lines { position: absolute; inset: 0; }
 
+/* 拖红线期间禁掉整页滚动。X5 内核不认 touch-action，touchmove 拦截也可能被当成
+   passive 忽略，body 上的 overflow 是第三道保险——只在拖动的那几百毫秒生效。 */
+body.dragging { overflow: hidden; }
+
 .line {
   touch-action: none;
   -webkit-user-select: none;

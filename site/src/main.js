@@ -334,6 +334,14 @@ function makeDraggable(line, index) {
   // 上把 touchmove 掐掉，松手再放开——这是唯一在各家内核里都稳的办法。
   const stopScroll = (ev) => { if (ev.cancelable) ev.preventDefault(); };
 
+  // 光拦 touchmove 不够：微信 X5 和一些安卓内核对 pointer 事件的 touch-action 支持
+  // 不完整，页面滚动的判定在 touchstart 就已经开始了，等 touchmove 再拦已经晚半拍，
+  // 表现为「按下去开始拖，页面先滚了一小段」。所以在 touchstart 阶段就掐掉默认行为。
+  line.addEventListener('touchstart', (e) => {
+    if (e.target.closest('.kill')) return;   // × 按钮得能点
+    if (e.cancelable) e.preventDefault();
+  }, { passive: false });
+
   line.addEventListener('pointerdown', (e) => {
     // 点在 × 上不要开始拖动：setPointerCapture 会把后续 click 重定向到 line，
     // 按钮的 click 永远收不到（手机上表现为"点叉没用"）。
@@ -346,6 +354,7 @@ function makeDraggable(line, index) {
     document.addEventListener('touchmove', stopScroll, { passive: false });
     // 拖动时把画布的手势也一并锁住，避免手指滑出红线后系统又接管滚动
     el.overlay.style.touchAction = 'none';
+    document.body.classList.add('dragging');
   }, { passive: false });
 
   line.addEventListener('pointermove', (e) => {
@@ -365,6 +374,7 @@ function makeDraggable(line, index) {
     dragging = false;
     document.removeEventListener('touchmove', stopScroll, { passive: false });
     el.overlay.style.touchAction = '';
+    document.body.classList.remove('dragging');
     if (moved && before) snapshot(before);
     if (moved) { render(); syncStatus(); }
   };
