@@ -368,6 +368,8 @@ function makeDraggable(line, index) {
     const b = document.body.style;
     b.position = 'fixed'; b.top = `-${lockedY}px`;
     b.left = '0'; b.right = '0'; b.width = '100%';
+    // body 自己被当成滚动容器时，光固定住它没用——内容照样能在里面滑
+    b.overflow = 'hidden'; b.touchAction = 'none';
     const h = document.documentElement.style;
     h.overflow = 'hidden'; h.overscrollBehavior = 'none';
     dbg();
@@ -377,6 +379,7 @@ function makeDraggable(line, index) {
     locked = false;
     const b = document.body.style;
     b.position = ''; b.top = ''; b.left = ''; b.right = ''; b.width = '';
+    b.overflow = ''; b.touchAction = '';
     const h = document.documentElement.style;
     h.overflow = ''; h.overscrollBehavior = '';
     window.scrollTo(0, lockedY);
