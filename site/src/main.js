@@ -5,7 +5,7 @@
 import { analyze, DEFAULTS } from './segment.js?v=19';
 import {
   loadBitmap, downscale, canvasToGray, cropRegion, canvasToJpegBlob, bitmapSize, rotate90,
-} from './imageio.js';
+} from './imageio.js?v=1';
 import { makeZip } from './zipstore.js';
 
 document.documentElement.dataset.build = 'v13-hist';
@@ -181,8 +181,12 @@ function splitDividers() {
 
 function regions() {
   const [top] = contentBounds();
+  const H = S.analysis.height;
   const { cuts, end } = splitDividers();
-  const ys = [top, ...cuts, end];
+  // 留白只加在整页的头和尾，中间的红线严格落在它画的那条线上。
+  // 以前 pad 是加在每一段的上下的（在 cropRegion 里统一减加），一条线两侧各多出
+  // pad，原图上就是 28 × 2.52 ≈ 70px 的重叠，用户看到的就是「红线位置和实际不一样」。
+  const ys = [Math.max(0, top - S.pad), ...cuts, Math.min(H, end + S.pad)];
   const out = [];
   for (let i = 0; i < ys.length - 1; i++) {
     if (ys[i + 1] - ys[i] >= 4) out.push([ys[i], ys[i + 1]]);

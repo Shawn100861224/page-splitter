@@ -103,8 +103,11 @@ export function cropRegion(bmp, yRange, scale, box, quality = 0.92) {
   const inv = 1 / scale;
   const left = Math.max(0, Math.round((box.x0 - box.pad) * inv));
   const right = Math.min(W, Math.round((box.x1 + box.pad) * inv));
-  const top = Math.max(0, Math.round((yRange[0] - box.pad) * inv));
-  const bottom = Math.min(H, Math.round((yRange[1] + box.pad) * inv));
+  // 上下不再加 pad：pad 是"外边多留白"，用户设的留白只该往外扩页面头尾（由调用方
+  // 在 regions() 里加），落在中间的分界线必须所见即所得，否则相邻两段会各多出 pad、
+  // 在原图上重叠一大截，看着就像红线画的位置和实际切的对不上。
+  const top = Math.max(0, Math.round(yRange[0] * inv));
+  const bottom = Math.min(H, Math.round(yRange[1] * inv));
   const w = Math.max(1, right - left);
   const h = Math.max(1, bottom - top);
 
