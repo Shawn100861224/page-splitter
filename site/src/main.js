@@ -47,6 +47,15 @@ const el = {
 };
 
 /** 全局状态（一次性页面，不做框架） */
+// 拖动期间要把 touchmove 吃掉。这条监听必须**一开始就挂在 document 上**：
+// 有的安卓内核在 touchstart 那一刻就检查有没有 non-passive 的 touchmove 监听者，
+// 等到按下时才临时 addEventListener 已经晚了，页面照样跟着滚。
+let dragLock = false;
+document.addEventListener('touchmove', (e) => {
+  if (!dragLock) return;
+  if (e.cancelable) e.preventDefault();
+}, { passive: false });
+
 const S = {
   bmp: null,
   analysis: null,   // { canvas, scale, width, height }
@@ -411,7 +420,7 @@ function makeDraggable(line, index) {
     // body 自己被当成滚动容器时，光固定住它没用——内容照样能在里面滑
     b.overflow = 'hidden'; b.touchAction = 'none';
     const h = document.documentElement.style;
-    h.overflow = 'hidden'; h.overscrollBehavior = 'none';
+    h.overflow = 'hidden'; h.overscrollBehavior = 'none'; h.touchAction = 'none';
     dbg();
   };
   const unlockPage = () => {
@@ -421,7 +430,7 @@ function makeDraggable(line, index) {
     b.position = ''; b.top = ''; b.left = ''; b.right = ''; b.width = '';
     b.overflow = ''; b.touchAction = '';
     const h = document.documentElement.style;
-    h.overflow = ''; h.overscrollBehavior = '';
+    h.overflow = ''; h.overscrollBehavior = ''; h.touchAction = '';
     window.scrollTo(0, lockedY);
   };
 
@@ -474,6 +483,7 @@ function makeDraggable(line, index) {
     const didMove = moved;
     clearArm();
     touching = false;
+    dragLock = false;
     document.removeEventListener('touchmove', stopScroll, { passive: false });
     document.removeEventListener('touchmove', onTouchMove, { passive: false });
     el.overlay.style.touchAction = '';
@@ -495,6 +505,7 @@ function makeDraggable(line, index) {
     lockPage();          // 有些自带浏览器不发 pointer，光靠 pointerdown 锁不住
     touching = true;
     moved = false;
+    dragLock = true;
     before = S.dividers.slice();   // 拖动失败也要能撤销，先拍一张
     const t = e.touches[0];
     startX = t.clientX; startY = t.clientY;
