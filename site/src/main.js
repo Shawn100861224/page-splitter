@@ -53,17 +53,25 @@ const el = {
 let dragLock = false;
 let lockY = 0;          // 拖动期间页面应该停在的位置
 let dragScrolls = null; // [[容器, 按下时的 scrollTop], ...]
+let mvN = 0;            // 本次拖动收到几次 touchmove（0＝手势根本没到我们手上）
+let snapN = 0;          // 按回滚动位置几次（>0 就是浏览器真的滚了）
+let drift = 0;          // 本次拖动窗口最大滚动偏离（px）
+let dbgHook = null;     // 由 makeDraggable 填进来，touchmove 里好刷新调试条
 document.addEventListener('touchmove', (e) => {
   if (!dragLock) return;
+  mvN++;
+  const d0 = Math.abs(window.scrollY - lockY);
+  if (d0 > drift) drift = d0;
   if (e.cancelable) e.preventDefault();
   // 有的自带内核（X5 一类）压根不认 preventDefault，那条路拦不住滚动。
   // 那就每帧把滚动位置硬按回去：哪怕它滚了，下一帧就被拉回来，视觉上页面钉住不动。
-  if (Math.abs(window.scrollY - lockY) > 1) window.scrollTo(0, lockY);
+  if (Math.abs(window.scrollY - lockY) > 1) { snapN++; window.scrollTo(0, lockY); }
   if (Math.abs(document.documentElement.scrollTop - lockY) > 1) document.documentElement.scrollTop = lockY;
   // 页面可能滚在某个内层容器里（有的浏览器把 body/根当普通容器滚），按下时记过的都按回去
   if (dragScrolls) {
     for (const [n, top] of dragScrolls) if (Math.abs(n.scrollTop - top) > 1) n.scrollTop = top;
   }
+  if (dbgHook) dbgHook();
 }, { passive: false });
 
 // 捕获阶段先拦一道：手指一落在红线上（× 除外），就在祖先节点上把这次手势的滚动关掉，
@@ -373,17 +381,18 @@ function makeDraggable(line, index) {
   let scrollTops = [];         // 按住那一刻各层滚动容器的位置
   const dbg = () => {
     if (!DEBUG) return;
+    dbgHook = dbg;
     let box = document.getElementById('dbgbox');
     if (!box) {
       box = document.createElement('div');
       box.id = 'dbgbox';
       box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#000;'
-        + 'color:#0f0;font:12px/1.45 monospace;padding:6px 8px;white-space:pre-wrap;'
+        + 'color:#0f0;font:bold 13px/1.5 monospace;padding:6px 8px;white-space:pre-wrap;'
         + 'pointer-events:none;';
       document.documentElement.appendChild(box);
     }
     const vv = window.visualViewport;
-    box.textContent = `b1333 locked=${locked} pos=${document.body.style.position || 'static'}`
+    box.textContent = `b1344 locked=${locked} mv=${mvN} drift=${Math.round(drift)} snap=${snapN} pos=${document.body.style.position || 'static'}`
       + ` top=${document.body.style.top || '-'}\nscrollY=${Math.round(window.scrollY)}`
       + ` htmlOver=${document.documentElement.style.overflow || '-'}`
       + ` bodyOver=${document.body.style.overflow || '-'}`
@@ -416,6 +425,7 @@ function makeDraggable(line, index) {
     // 不用 position:fixed 了：改布局本身会让画面顶一下，看着就像「跟着滚」。
     // 改成「禁滚动 + 每帧按回去」，位置一点不动。
     lockY = lockedY;
+    mvN = 0; snapN = 0; drift = 0;
     const b = document.body.style;
     b.overflow = 'hidden'; b.touchAction = 'none'; b.overscrollBehavior = 'none';
     const h = document.documentElement.style;
