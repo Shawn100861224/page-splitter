@@ -407,15 +407,22 @@ function makeDraggable(line, index) {
   // 双指缩放过的页面，拖的时候动的不是「文档滚动」而是「视觉视口」——
   // window.scrollY 一直是 0，画面却在跑，preventDefault 也拦不住。
   // 对策：给预览容器加一个反向位移，把它按回原处。
-  const followVV = () => {
+  // 逐帧采样，不靠 scroll 事件：自带内核在拖动时收起/展开地址栏，可见区域整个被推一下，
+  // 它不发事件也拦不住（那是浏览器自己的界面，不是页面滚动）。
+  // 符号：画面在屏幕上被推走多少，就把预览容器往反方向挪同样多，肉眼看就是钉住不动。
+  let rafId = 0;
+  const sample = () => {
     if (!locked) return;
     const vv = window.visualViewport;
-    if (!vv) return;
-    const dx = vv.offsetLeft - vvX0;
-    const dy = vv.offsetTop - vvY0;
-    el.stage.style.transform = (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5)
-      ? '' : `translate(${-dx}px, ${-dy}px)`;
+    // 页面/视口往下推 d，画面在屏幕上就往上跑了 d，所以这里要往同一方向补 +d
+    const tx = (vv ? (vv.offsetLeft - vvX0) : 0);
+    const ty = (window.scrollY - lockY)
+      + (vv ? (vv.offsetTop - vvY0) : 0)
+      + (el.editor ? (el.editor.scrollTop - (el.editor.__lockTop || 0)) : 0);
+    el.stage.style.transform = (Math.abs(tx) < 0.5 && Math.abs(ty) < 0.5)
+      ? '' : `translate(${tx}px, ${ty}px)`;
     dbg();
+    rafId = requestAnimationFrame(sample);
   };
 
   const lockPage = () => {
@@ -435,11 +442,10 @@ function makeDraggable(line, index) {
     el.editor.style.overflowY = 'hidden';
     // 视觉视口 + 各层滚动容器都记下来，拖动期间一直按回原位
     const vv = window.visualViewport;
-    if (vv) {
-      vvX0 = vv.offsetLeft; vvY0 = vv.offsetTop;
-      vv.addEventListener('scroll', followVV);
-      vv.addEventListener('resize', followVV);
-    }
+    if (vv) { vvX0 = vv.offsetLeft; vvY0 = vv.offsetTop; }
+    el.editor.__lockTop = el.editor.scrollTop || 0;
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(sample);
     scrollTops = [];
     for (let n = el.overlay; n; n = n.parentElement) {
       if (n.scrollHeight > n.clientHeight + 2) scrollTops.push([n, n.scrollTop]);
@@ -456,8 +462,8 @@ function makeDraggable(line, index) {
     h.overflow = ''; h.overscrollBehavior = ''; h.touchAction = '';
     document.body.classList.remove('dragging');
     el.editor.style.overflowY = '';
-    const vv = window.visualViewport;
-    if (vv) { vv.removeEventListener('scroll', followVV); vv.removeEventListener('resize', followVV); }
+    cancelAnimationFrame(rafId);
+    rafId = 0;
     el.stage.style.transform = '';
     for (const [n, top] of scrollTops) n.scrollTop = top;
     scrollTops = [];
