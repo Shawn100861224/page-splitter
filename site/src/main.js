@@ -340,25 +340,35 @@ function makeDraggable(line, index) {
   line.addEventListener('touchstart', (e) => {
     if (e.target.closest('.kill')) return;   // × 按钮得能点
     if (e.cancelable) e.preventDefault();
+    lockPage();          // 有些自带浏览器不发 pointer，光靠 pointerdown 锁不住
   }, { passive: false });
 
-  // 触屏设备再上一道最狠的锁：拖动期间把 body 钉住（position:fixed + top 补偿）。
-  // Chrome 里前面三道就够了，但手机自带浏览器（荣耀/华为这类）在 touchstart 之后
-  // 会直接走原生滚动，preventDefault 拦不住；钉住是各种内核都吃的一套。
-  const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)
-    || /[?&]mobile=1/.test(location.search);   // 和 isMobile() 同一个调试开关
+  line.addEventListener('touchend', unlockPage, { passive: true });
+  line.addEventListener('touchcancel', unlockPage, { passive: true });
+
+  // 最狠的一道锁：拖动期间把页面钉住（position:fixed + top 补偿）。
+  // 不判 (pointer:coarse)——手机上这个媒体查询不一定准，判错了整道锁就废了。
+  // 同时锁 html：有的内核滚的是 documentElement，只锁 body 没用。
+  // 幂等：touchstart 和 pointerdown 都会调，重复调用不能把 lockedY 记成 0。
+  let locked = false;
   let lockedY = 0;
   const lockPage = () => {
-    if (!coarse) return;
+    if (locked) return;
+    locked = true;
     lockedY = window.scrollY || document.documentElement.scrollTop || 0;
     const b = document.body.style;
     b.position = 'fixed'; b.top = `-${lockedY}px`;
     b.left = '0'; b.right = '0'; b.width = '100%';
+    const h = document.documentElement.style;
+    h.overflow = 'hidden'; h.overscrollBehavior = 'none';
   };
   const unlockPage = () => {
-    if (!coarse) return;
+    if (!locked) return;
+    locked = false;
     const b = document.body.style;
     b.position = ''; b.top = ''; b.left = ''; b.right = ''; b.width = '';
+    const h = document.documentElement.style;
+    h.overflow = ''; h.overscrollBehavior = '';
     window.scrollTo(0, lockedY);
   };
 
