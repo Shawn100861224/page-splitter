@@ -356,6 +356,17 @@ function makeDraggable(line, index) {
   let moved = false;
   let before = null;
 
+  // 手机上「点一下」和「划一下」判不准（想拖被当成点，想点又被当成划）。
+  // 所以选中的触发条件改成**长按**：按住 ~0.4s 不动 → 松手＝选中这条线；
+  // 直接上下划 → 仍是原来的拖动；短按 → 什么都不做。
+  const LONG_PRESS_MS = 400;
+  const JITTER = 10;            // 长按期间允许的抖动，超过就当成想拖
+  let touching = false;
+  let armed = false;            // 长按已达成（线已加粗）
+  let armTimer = 0;
+  let startX = 0;
+  let startY = 0;
+
   // 微信的 X5 内核（还有部分安卓浏览器）对 pointer 事件的 touch-action 支持不完整，
   // 只靠 CSS 的话手指按在红线上往下拖，页面会跟着一起滚。拖动期间直接在 document
   // 上把 touchmove 掐掉，松手再放开——这是唯一在各家内核里都稳的办法。
@@ -414,21 +425,97 @@ function makeDraggable(line, index) {
     window.scrollTo(0, lockedY);
   };
 
+  // —— 手指路径：touch 事件一定存在（pointer 不一定），拖动和长按都走这里 ——
+  const clearArm = () => {
+    clearTimeout(armTimer);
+    armTimer = 0;
+    if (armed) { armed = false; line.classList.remove('arm'); }
+  };
+
+  // 长按一到位立刻把 ↑ ↓ 露出来（不等松手）：直接给当前这个节点加类，
+  // 不能在这里调 renderOverlay()——那会把正在按着的节点整个换掉，后续 touchend 收不到，页面锁就解不开了。
+  const armNow = () => {
+    armTimer = 0;
+    if (!touching || moved) return;
+    armed = true;
+    line.classList.add('arm');
+    if (S.sel !== index) line.classList.add('sel');
+    try { navigator.vibrate?.(12); } catch (_) { /* 有的浏览器没震动 */ }
+    setStatus('已按住这条线 · 松手＝选中它，或继续上下拖直接移动', 'warn');
+  };
+
+  /** clientY → 图上的 y，写回这条线 */
+  const applyY = (clientY) => {
+    const rect = el.overlay.getBoundingClientRect();
+    const y = ((clientY - rect.top) / rect.height) * S.analysis.height;
+    const [lo, hi] = dividerBounds();
+    const next = clamp(Math.round(y), lo, hi);
+    if (Math.abs(next - S.dividers[index]) >= 1) {
+      moved = true;
+      S.dividers[index] = next;
+      line.style.top = `${(next / S.analysis.height) * 100}%`;
+    }
+  };
+
+  const onTouchMove = (ev) => {
+    if (!touching) return;
+    const t = ev.touches && ev.touches[0];
+    if (!t) return;
+    if (!armed && !moved
+      && Math.abs(t.clientY - startY) <= JITTER
+      && Math.abs(t.clientX - startX) <= JITTER) return;   // 还按在原地：继续等长按
+    clearArm();             // 动了这么多：这是拖，不是长按
+    if (ev.cancelable) ev.preventDefault();
+    applyY(t.clientY);
+  };
+
+  const finishTouch = () => {
+    const wasArmed = armed;
+    const didMove = moved;
+    clearArm();
+    touching = false;
+    document.removeEventListener('touchmove', stopScroll, { passive: false });
+    document.removeEventListener('touchmove', onTouchMove, { passive: false });
+    el.overlay.style.touchAction = '';
+    document.body.classList.remove('dragging');
+    unlockPage();
+    if (didMove && before) { snapshot(before); render(); syncStatus(); return; }
+    if (!wasArmed) { syncStatus(); return; }   // 短按：什么都不做，别再抢手势
+    // 长按松手：选中它；已经选中的再长按一次就是取消
+    S.sel = (S.sel === index) ? null : index;
+    renderOverlay();
+    if (S.sel != null) setStatus('已选中这条线 · 点图上任意位置把它挪过去，或用 ↑ ↓ 微调', 'warn');
+    else syncStatus();
+  };
+
   // 光拦 touchmove 不够：滚动判定在 touchstart 就开始了，等 touchmove 再拦已经晚半拍。
   line.addEventListener('touchstart', (e) => {
-    if (e.target.closest('.kill')) return;   // × 按钮得能点
+    if (e.target.closest('.kill, .step')) return;   // × 和 ↑↓ 按钮得能点
     if (e.cancelable) e.preventDefault();
     lockPage();          // 有些自带浏览器不发 pointer，光靠 pointerdown 锁不住
+    touching = true;
+    moved = false;
+    before = S.dividers.slice();   // 拖动失败也要能撤销，先拍一张
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY;
+    clearTimeout(armTimer);
+    armTimer = setTimeout(armNow, LONG_PRESS_MS);
+    document.addEventListener('touchmove', stopScroll, { passive: false });
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.overlay.style.touchAction = 'none';
+    document.body.classList.add('dragging');
   }, { passive: false });
-  // 包一层箭头：直接把 unlockPage 当回调值传，会在注册这一行就求值，撞上 TDZ 直接抛
-  line.addEventListener('touchend', () => unlockPage(), { passive: true });
-  line.addEventListener('touchcancel', () => unlockPage(), { passive: true });
+  line.addEventListener('touchend', finishTouch, { passive: false });
+  line.addEventListener('touchcancel', finishTouch, { passive: false });
+  line.addEventListener('contextmenu', (e) => e.preventDefault());   // 长按别弹系统菜单
 
 
   line.addEventListener('pointerdown', (e) => {
-    // 点在 × 上不要开始拖动：setPointerCapture 会把后续 click 重定向到 line，
+    // 手指走上面的 touch 路径：两套同时动会双倍速。这里只管鼠标（电脑上不用长按，直接拖）
+    if (e.pointerType !== 'mouse') return;
+    // 点在 × / ↑↓ 上不要开始拖动：setPointerCapture 会把后续 click 重定向到 line，
     // 按钮的 click 永远收不到（手机上表现为"点叉没用"）。
-    if (e.target.closest('.kill')) return;
+    if (e.target.closest('.kill, .step')) return;
     dragging = true;
     moved = false;
     before = S.dividers.slice();
@@ -455,7 +542,8 @@ function makeDraggable(line, index) {
     }
   });
 
-  const end = () => {
+  const end = (e) => {
+    if (e && e.pointerType && e.pointerType !== 'mouse') return;
     dragging = false;
     document.removeEventListener('touchmove', stopScroll, { passive: false });
     el.overlay.style.touchAction = '';

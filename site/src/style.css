@@ -229,6 +229,7 @@ body.dragging { overflow: hidden; }
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;   /* 长按别弹「拷贝/存储图像」系统菜单，否则长按选中被抢走 */
   position: absolute;
   left: 0; right: 0;
   height: 0;
@@ -264,6 +265,12 @@ body.dragging { overflow: hidden; }
 
 /* 选中态：线加粗，右侧露出 ↑ ↓（手机自带浏览器里拖会带着页面走，点按这条路更稳） */
 .line.sel { border-top-width: 3px; }
+
+/* 长按到位：加一圈光晕，配合右侧 ↑ ↓ 一起出现，告诉手指「已经按住了，松手就是选中」 */
+.line.arm {
+  border-top-width: 3px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 45%, transparent);
+}
 
 .line .step {
   position: absolute;
