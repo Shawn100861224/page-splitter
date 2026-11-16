@@ -334,24 +334,33 @@ function makeDraggable(line, index) {
   // 上把 touchmove 掐掉，松手再放开——这是唯一在各家内核里都稳的办法。
   const stopScroll = (ev) => { if (ev.cancelable) ev.preventDefault(); };
 
-  // 光拦 touchmove 不够：微信 X5 和一些安卓内核对 pointer 事件的 touch-action 支持
-  // 不完整，页面滚动的判定在 touchstart 就已经开始了，等 touchmove 再拦已经晚半拍，
-  // 表现为「按下去开始拖，页面先滚了一小段」。所以在 touchstart 阶段就掐掉默认行为。
-  line.addEventListener('touchstart', (e) => {
-    if (e.target.closest('.kill')) return;   // × 按钮得能点
-    if (e.cancelable) e.preventDefault();
-    lockPage();          // 有些自带浏览器不发 pointer，光靠 pointerdown 锁不住
-  }, { passive: false });
-
-  line.addEventListener('touchend', unlockPage, { passive: true });
-  line.addEventListener('touchcancel', unlockPage, { passive: true });
-
-  // 最狠的一道锁：拖动期间把页面钉住（position:fixed + top 补偿）。
-  // 不判 (pointer:coarse)——手机上这个媒体查询不一定准，判错了整道锁就废了。
-  // 同时锁 html：有的内核滚的是 documentElement，只锁 body 没用。
-  // 幂等：touchstart 和 pointerdown 都会调，重复调用不能把 lockedY 记成 0。
+  // ?debug=1：把锁的状态顶在屏幕最上面。手机上到底是「锁没生效」还是「锁生效了但
+  // 页面照滚」，靠猜猜不准，让页面自己说话。
+  const DEBUG = /[?&]debug=1/.test(location.search);
   let locked = false;
   let lockedY = 0;
+  const dbg = () => {
+    if (!DEBUG) return;
+    let box = document.getElementById('dbgbox');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'dbgbox';
+      box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#000;'
+        + 'color:#0f0;font:12px/1.45 monospace;padding:6px 8px;white-space:pre-wrap;'
+        + 'pointer-events:none;';
+      document.documentElement.appendChild(box);
+    }
+    box.textContent = `locked=${locked} pos=${document.body.style.position || 'static'}`
+      + ` top=${document.body.style.top || '-'}\nscrollY=${Math.round(window.scrollY)}`
+      + ` htmlOver=${document.documentElement.style.overflow || '-'}`
+      + ` bodyOver=${document.body.style.overflow || '-'}`
+      + ` coarse=${window.matchMedia('(pointer: coarse)').matches}`;
+  };
+
+  // 最狠的一道锁：拖动期间把页面钉住（position:fixed + top 补偿）。
+  // 不判 (pointer:coarse)——手机上这个媒体查询不一定准，判错整道锁就废了。
+  // 同时锁 html：有的内核滚的是 documentElement，只锁 body 没用。
+  // 幂等：touchstart 和 pointerdown 都会调，重复调用不能把 lockedY 记成 0。
   const lockPage = () => {
     if (locked) return;
     locked = true;
@@ -361,6 +370,7 @@ function makeDraggable(line, index) {
     b.left = '0'; b.right = '0'; b.width = '100%';
     const h = document.documentElement.style;
     h.overflow = 'hidden'; h.overscrollBehavior = 'none';
+    dbg();
   };
   const unlockPage = () => {
     if (!locked) return;
@@ -371,6 +381,17 @@ function makeDraggable(line, index) {
     h.overflow = ''; h.overscrollBehavior = '';
     window.scrollTo(0, lockedY);
   };
+
+  // 光拦 touchmove 不够：滚动判定在 touchstart 就开始了，等 touchmove 再拦已经晚半拍。
+  line.addEventListener('touchstart', (e) => {
+    if (e.target.closest('.kill')) return;   // × 按钮得能点
+    if (e.cancelable) e.preventDefault();
+    lockPage();          // 有些自带浏览器不发 pointer，光靠 pointerdown 锁不住
+  }, { passive: false });
+  // 包一层箭头：直接把 unlockPage 当回调值传，会在注册这一行就求值，撞上 TDZ 直接抛
+  line.addEventListener('touchend', () => unlockPage(), { passive: true });
+  line.addEventListener('touchcancel', () => unlockPage(), { passive: true });
+
 
   line.addEventListener('pointerdown', (e) => {
     // 点在 × 上不要开始拖动：setPointerCapture 会把后续 click 重定向到 line，
@@ -390,6 +411,7 @@ function makeDraggable(line, index) {
 
   line.addEventListener('pointermove', (e) => {
     if (!dragging) return;
+    dbg();
     const rect = el.overlay.getBoundingClientRect();
     const y = ((e.clientY - rect.top) / rect.height) * S.analysis.height;
     const [lo, hi] = dividerBounds();
