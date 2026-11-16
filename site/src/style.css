@@ -263,43 +263,6 @@ body.dragging { overflow: hidden; }
   height: 18px;
 }
 
-/* 选中态：线加粗，右侧露出 ↑ ↓（手机自带浏览器里拖会带着页面走，点按这条路更稳） */
-.line.sel { border-top-width: 3px; }
-
-/* 长按到位：加一圈光晕，配合右侧 ↑ ↓ 一起出现，告诉手指「已经按住了，松手就是选中」 */
-.line.arm {
-  border-top-width: 3px;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 45%, transparent);
-}
-
-.line .step {
-  position: absolute;
-  top: -15px;
-  width: 30px; height: 30px;
-  display: none;
-  touch-action: manipulation;
-  z-index: 2;
-  border-radius: 50%;
-  border: 1px solid var(--line);
-  background: var(--card);
-  color: var(--fg);
-  font-size: 14px;
-  line-height: 1;
-  place-items: center;
-  cursor: pointer;
-}
-
-.line.sel .step { display: grid; }
-.line .step.up { right: 78px; }
-.line .step.down { right: 44px; }
-
-/* 手机上手指比鼠标粗，按钮放大到 38px，间距跟着让开 */
-@media (max-width: 860px) {
-  .line .step, .line .kill { width: 38px; height: 38px; top: -19px; }
-  .line .step.up { right: 92px; }
-  .line .step.down { right: 50px; }
-}
-
 .line .kill {
   position: absolute;
   right: 6px; top: -15px;
@@ -314,6 +277,11 @@ body.dragging { overflow: hidden; }
   line-height: 1;
   display: grid; place-items: center;
   cursor: pointer;
+}
+
+/* 手机上手指比鼠标粗，× 放大到 38px */
+@media (max-width: 860px) {
+  .line .kill { width: 38px; height: 38px; top: -19px; }
 }
 
 .warnings {
