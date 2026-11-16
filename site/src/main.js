@@ -431,6 +431,8 @@ function makeDraggable(line, index) {
     const h = document.documentElement.style;
     h.overflow = 'hidden'; h.overscrollBehavior = 'none'; h.touchAction = 'none';
     document.body.classList.add('dragging');
+    // 编辑器本身是唯一的滚动容器，拖动期间也关掉：连「它自己滚」这一条路一起堵死
+    el.editor.style.overflowY = 'hidden';
     // 视觉视口 + 各层滚动容器都记下来，拖动期间一直按回原位
     const vv = window.visualViewport;
     if (vv) {
@@ -453,6 +455,7 @@ function makeDraggable(line, index) {
     const h = document.documentElement.style;
     h.overflow = ''; h.overscrollBehavior = ''; h.touchAction = '';
     document.body.classList.remove('dragging');
+    el.editor.style.overflowY = '';
     const vv = window.visualViewport;
     if (vv) { vv.removeEventListener('scroll', followVV); vv.removeEventListener('resize', followVV); }
     el.stage.style.transform = '';
