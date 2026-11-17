@@ -627,3 +627,20 @@ dialog.gallery::backdrop { background: rgba(0, 0, 0, .6); }
   color: var(--accent);
   opacity: .9;
 }
+
+/* 拖动时锁住「真正的滚动容器」。之前 body.dragging 那条是空转：
+   编辑器打开后 body 早就没有滚动能力了，真正能被滚的是 position:fixed 的 #editor。
+   合成器（荣耀/UC 一类自带壳）在判定滚动时会往上找到 #editor 的 pan-y 就把手势抢走，
+   所以这里必须把它的 touch-action 也钉死，并关掉惯性滚动这条快速通道。 */
+body.dragging #editor {
+  overflow: hidden !important;
+  touch-action: none !important;
+  -webkit-overflow-scrolling: auto !important;
+  overscroll-behavior: none !important;
+}
+
+/* sticky 元素在滚动时会被合成器反复重算位置，手指按着时更容易被判成滚动，
+   拖动期间临时取消吸顶 */
+body.dragging .preview-wrap {
+  position: static !important;
+}

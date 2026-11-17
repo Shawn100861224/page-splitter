@@ -495,9 +495,13 @@ function makeDraggable(line, index) {
   };
 
   // —— 手指路径：touch 事件一定存在（pointer 不一定），拖动走这里 ——
+  // 按下那一刻的预览矩形：整场拖动都用它换算。中途浏览器把画面推走、
+  // 或者我们为了抵消而做了位移，都不该让线从手指底下跳走。
+  let startRect = null;
+
   /** clientY → 图上的 y，写回这条线 */
   const applyY = (clientY) => {
-    const rect = el.overlay.getBoundingClientRect();
+    const rect = startRect || el.overlay.getBoundingClientRect();
     const y = ((clientY - rect.top) / rect.height) * S.analysis.height;
     const [lo, hi] = dividerBounds();
     const next = clamp(Math.round(y), lo, hi);
@@ -517,6 +521,7 @@ function makeDraggable(line, index) {
   };
 
   const finishTouch = () => {
+    startRect = null;
     const didMove = moved;
     touching = false;
     dragLock = false;
@@ -527,6 +532,12 @@ function makeDraggable(line, index) {
     unlockPage();
     if (didMove && before) { snapshot(before); render(); syncStatus(); }
     else syncStatus();
+    // 真被抢走过（画面被推动/滚动被按回过），就明确告诉他换一种操作，
+    // 别让他以为是自己手抖。每次进页面只提示一次。
+    if ((drift > 1 || snapN > 0) && !sessionStorage.getItem('dragHinted')) {
+      sessionStorage.setItem('dragHinted', '1');
+      setStatus('这台浏览器会把拖动当成滑页面——用线右端的 ↑ ↓ 微调更稳（每次 2px）', 'warn');
+    }
   };
 
   // 光拦 touchmove 不够：滚动判定在 touchstart 就开始了，等 touchmove 再拦已经晚半拍。
@@ -536,6 +547,7 @@ function makeDraggable(line, index) {
     lockPage();          // 有些自带浏览器不发 pointer，光靠 pointerdown 锁不住
     touching = true;
     moved = false;
+    startRect = el.overlay.getBoundingClientRect();
     dragLock = true;
     before = S.dividers.slice();   // 拖动失败也要能撤销，先拍一张
     document.addEventListener('touchmove', stopScroll, { passive: false });
