@@ -83,6 +83,22 @@ el.lines.addEventListener('touchstart', (e) => {
   if (e.cancelable) e.preventDefault();
 }, { passive: false, capture: true });
 
+// ↑ ↓ 微调按钮默认藏着（能拖动时它们只会压住题目正文）。什么时候露出来：
+// ① UA 是「自家壳」浏览器（荣耀/华为/小米/VIVO/OPPO/UC/夸克）——它们把竖向拖动当成
+//    自己的工具栏手势吃掉，网页侧拦不住，只能给纯点按的路；
+// ② 实测拖动过程中真被推动过（drift/snap，见 finishTouch）；
+// ③ 上次已经判定过（localStorage 记住）。
+// 微信（MicroMessenger）和 Chrome 里永远不露：那里拖动是好的，画面保持干净。
+const __UA = navigator.userAgent;
+const __inWeChat = /MicroMessenger/i.test(__UA);
+const __oemShell = /HuaweiBrowser|HONORBrowser|HonorBrowser|MiuiBrowser|XiaoMi|HeyTapBrowser|VivoBrowser|OppoBrowser|Quark|UCBrowser/i.test(__UA);
+try {
+  if (/[?&]steps=1/.test(location.search)
+      || (!__inWeChat && (__oemShell || localStorage.getItem('dragstolen') === '1'))) {
+    document.documentElement.classList.add('dragstolen');
+  }
+} catch (_) {}
+
 const S = {
   bmp: null,
   analysis: null,   // { canvas, scale, width, height }
@@ -534,6 +550,11 @@ function makeDraggable(line, index) {
     else syncStatus();
     // 真被抢走过（画面被推动/滚动被按回过），就明确告诉他换一种操作，
     // 别让他以为是自己手抖。每次进页面只提示一次。
+    if (drift > 1 || snapN > 0) {
+      // 这台浏览器会抢手势：把 ↑ ↓ 露出来（默认藏着的），并记住，别每次重新判定
+      document.documentElement.classList.add('dragstolen');
+      try { localStorage.setItem('dragstolen', '1'); } catch (_) {}
+    }
     if ((drift > 1 || snapN > 0) && !sessionStorage.getItem('dragHinted')) {
       sessionStorage.setItem('dragHinted', '1');
       setStatus('这台浏览器会把拖动当成滑页面——用线右端的 ↑ ↓ 微调更稳（每次 2px）', 'warn');
